@@ -20,6 +20,7 @@ import { ProgressAreaChart, LanguageDonut } from '@/components/dashboard/charts'
 import { codingProgress, languageSplit, dailyTasks, achievements } from '@/lib/mock-data'
 import type { ViewId } from '@/lib/nav'
 import { useState } from 'react'
+import { useAuth } from '@/components/dashboard/auth-context'
 
 const container = {
   hidden: {},
@@ -30,17 +31,18 @@ const item = {
   show: { opacity: 1, y: 0 },
 }
 
-const stats = [
-  { label: 'Placement Probability', value: 79, suffix: '%', delta: '+6%', icon: TrendingUp, color: 'text-chart-1', bg: 'bg-chart-1/15' },
-  { label: 'ATS Resume Score', value: 88, suffix: '/100', delta: '+12', icon: FileCheck2, color: 'text-chart-2', bg: 'bg-chart-2/15' },
-  { label: 'Interview Readiness', value: 72, suffix: '%', delta: '+9%', icon: Mic, color: 'text-chart-3', bg: 'bg-chart-3/15' },
-  { label: 'Study Streak', value: 32, suffix: ' days', delta: 'Best: 41', icon: Flame, color: 'text-chart-5', bg: 'bg-chart-5/15' },
-]
-
 export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
+  const { user } = useAuth()
   const [tasks, setTasks] = useState(dailyTasks)
   const toggle = (id: number) => setTasks((t) => t.map((x) => (x.id === id ? { ...x, done: !x.done } : x)))
   const doneCount = tasks.filter((t) => t.done).length
+
+  const stats = [
+    { label: 'Placement Probability', value: user?.stats.placementProb ?? 79, suffix: '%', delta: '+6%', icon: TrendingUp, color: 'text-chart-1', bg: 'bg-chart-1/15' },
+    { label: 'ATS Resume Score', value: user?.stats.atsScore ?? 88, suffix: '/100', delta: '+12', icon: FileCheck2, color: 'text-chart-2', bg: 'bg-chart-2/15' },
+    { label: 'Interview Readiness', value: user?.stats.interviewReadiness ?? 72, suffix: '%', delta: '+9%', icon: Mic, color: 'text-chart-3', bg: 'bg-chart-3/15' },
+    { label: 'Study Streak', value: user?.stats.streak ?? 32, suffix: ' days', delta: 'Best: 41', icon: Flame, color: 'text-chart-5', bg: 'bg-chart-5/15' },
+  ]
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -77,7 +79,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
             <p className="mb-4 font-mono text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
               AI Placement Probability
             </p>
-            <RadialGauge value={79} label="on track for offer" />
+            <RadialGauge value={user?.stats.placementProb ?? 79} label="on track for offer" />
             <p className="mt-4 max-w-[16rem] text-pretty text-sm text-muted-foreground">
               Synthesized by 6 agents from your coding, resume, aptitude and interview signals.
             </p>

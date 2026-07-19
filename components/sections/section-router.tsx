@@ -16,6 +16,12 @@ import { NotificationsSection } from "./notifications"
 import { SettingsSection } from "./settings"
 import { ProfileSection } from "./profile"
 
+// Admin Views
+import { AdminOverview } from "./admin/admin-overview"
+import { AdminUsers } from "./admin/admin-users"
+import { AdminAgents } from "./admin/admin-agents"
+import { AdminSettings } from "./admin/admin-settings"
+
 export function SectionRouter({ view, onNavigate }: { view: ViewId; onNavigate: (v: ViewId) => void }) {
   switch (view) {
     case "dashboard":
@@ -46,5 +52,15 @@ export function SectionRouter({ view, onNavigate }: { view: ViewId; onNavigate: 
       return <SettingsSection />
     case "profile":
       return <ProfileSection />
+
+    // Admin cases
+    case "admin-dashboard":
+      return <AdminOverview />
+    case "admin-users":
+      return <AdminUsers />
+    case "admin-agents":
+      return <AdminAgents />
+    case "admin-settings":
+      return <AdminSettings />
   }
 }

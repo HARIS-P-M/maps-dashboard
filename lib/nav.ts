@@ -13,6 +13,7 @@ import {
   Bell,
   Settings,
   User,
+  Users,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -31,6 +32,10 @@ export type ViewId =
   | 'notifications'
   | 'settings'
   | 'profile'
+  | 'admin-dashboard'
+  | 'admin-users'
+  | 'admin-agents'
+  | 'admin-settings'
 
 export type NavItem = {
   id: ViewId
@@ -57,6 +62,13 @@ export const navItems: NavItem[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'Account' },
 ]
 
+export const adminNavItems: NavItem[] = [
+  { id: 'admin-dashboard', label: 'Admin Panel', icon: LayoutDashboard, group: 'Overview' },
+  { id: 'admin-users', label: 'User Directory', icon: Users, group: 'Management' },
+  { id: 'admin-agents', label: 'Agent Control', icon: Bot, group: 'Management' },
+  { id: 'admin-settings', label: 'Site Config', icon: Settings, group: 'Configuration' },
+]
+
 export const viewMeta: Record<ViewId, { title: string; subtitle: string }> = {
   dashboard: { title: 'Command Center', subtitle: 'Your AI-orchestrated placement readiness at a glance' },
   agents: { title: 'AI Agents', subtitle: 'Six specialized agents collaborating on your prep' },
@@ -72,4 +84,8 @@ export const viewMeta: Record<ViewId, { title: string; subtitle: string }> = {
   notifications: { title: 'Notifications', subtitle: 'Agent nudges, deadlines and milestones' },
   settings: { title: 'Settings', subtitle: 'Tune MAPS to how you work' },
   profile: { title: 'Profile', subtitle: 'Your identity across the platform' },
+  'admin-dashboard': { title: 'Admin Overview', subtitle: 'Multi-Agent Placement System health and performance analytics' },
+  'admin-users': { title: 'Cohort Management', subtitle: 'Monitor students, edit scores, and check streaks' },
+  'admin-agents': { title: 'Agent Control Room', subtitle: 'Configure weights, parameters, and active agents' },
+  'admin-settings': { title: 'System Settings', subtitle: 'Configure global features and dashboard toggles' },
 }

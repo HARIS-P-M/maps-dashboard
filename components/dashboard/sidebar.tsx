@@ -1,11 +1,10 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { PanelLeftClose, PanelLeft, Sparkles, X } from 'lucide-react'
-import { navItems, type ViewId } from '@/lib/nav'
+import { PanelLeftClose, PanelLeft, Sparkles, X, LogOut } from 'lucide-react'
+import { navItems, adminNavItems, type ViewId } from '@/lib/nav'
 import { cn } from '@/lib/utils'
-
-const groupOrder = ['Overview', 'Preparation', 'Intelligence', 'Community', 'Account']
+import { useAuth } from './auth-context'
 
 export function Sidebar({
   active,
@@ -22,7 +21,13 @@ export function Sidebar({
   mobileOpen: boolean
   onCloseMobile: () => void
 }) {
+  const { user, logout } = useAuth()
   const width = collapsed ? 76 : 264
+
+  const itemsToRender = user?.role === 'admin' ? adminNavItems : navItems
+  const activeGroups = user?.role === 'admin'
+    ? ['Overview', 'Management', 'Configuration']
+    : ['Overview', 'Preparation', 'Intelligence', 'Community', 'Account']
 
   const nav = (
     <nav aria-label="Primary" className="flex h-full flex-col">
@@ -41,7 +46,7 @@ export function Sidebar({
             >
               <p className="truncate text-sm font-semibold leading-tight">MAPS</p>
               <p className="truncate font-mono text-[0.65rem] uppercase tracking-widest text-muted-foreground">
-                Placement OS
+                {user?.role === 'admin' ? 'Admin Portal' : 'Placement OS'}
               </p>
             </motion.div>
           )}
@@ -57,8 +62,9 @@ export function Sidebar({
 
       {/* Items */}
       <div className="flex-1 space-y-5 overflow-y-auto px-3 pb-4 pt-2">
-        {groupOrder.map((group) => {
-          const items = navItems.filter((i) => i.group === group)
+        {activeGroups.map((group) => {
+          const items = itemsToRender.filter((i) => i.group === group)
+          if (items.length === 0) return null
           return (
             <div key={group}>
               {!collapsed && (
@@ -114,11 +120,26 @@ export function Sidebar({
         })}
       </div>
 
-      {/* Collapse toggle (desktop) */}
-      <div className="hidden border-t border-sidebar-border p-3 lg:block">
+      {/* Footer (Logout & Collapse) */}
+      <div className="border-t border-sidebar-border p-3 space-y-1">
+        <button
+          onClick={logout}
+          className={cn(
+            'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors',
+            collapsed && 'justify-center'
+          )}
+          title={collapsed ? 'Log Out' : undefined}
+        >
+          <LogOut className="size-[18px] shrink-0" />
+          {!collapsed && <span>Log Out</span>}
+        </button>
+
         <button
           onClick={onToggleCollapse}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-sidebar-foreground/75 transition-colors hover:bg-sidebar-accent/60"
+          className={cn(
+            'hidden w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-sidebar-foreground/75 hover:bg-sidebar-accent/60 transition-colors lg:flex',
+            collapsed && 'justify-center'
+          )}
         >
           {collapsed ? <PanelLeft className="size-[18px]" /> : <PanelLeftClose className="size-[18px]" />}
           {!collapsed && <span>Collapse</span>}

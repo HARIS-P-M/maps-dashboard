@@ -1,8 +1,9 @@
 "use client"
 
 import { GlassCard } from "@/components/dashboard/glass-card"
-import { CodingProgressChart, ProbabilityAreaChart, LanguagePie } from "@/components/dashboard/charts"
+import { ProgressAreaChart, ProbabilityLine, LanguageDonut } from "@/components/dashboard/charts"
 import { AnimatedCounter } from "@/components/dashboard/animated-counter"
+import { codingProgress, languageSplit, probabilityTrend } from "@/lib/mock-data"
 import { motion } from "framer-motion"
 
 const kpis = [
@@ -37,17 +38,17 @@ export function AnalyticsSection() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <GlassCard className="p-6 xl:col-span-2">
           <h2 className="mb-4 text-lg font-semibold">Coding Progress vs. Target</h2>
-          <CodingProgressChart />
+          <ProgressAreaChart data={codingProgress} />
         </GlassCard>
         <GlassCard className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Language Split</h2>
-          <LanguagePie />
+          <LanguageDonut data={languageSplit} />
         </GlassCard>
       </div>
 
       <GlassCard className="p-6">
         <h2 className="mb-4 text-lg font-semibold">Placement Probability Trend</h2>
-        <ProbabilityAreaChart />
+        <ProbabilityLine data={probabilityTrend} />
       </GlassCard>
     </div>
   )
