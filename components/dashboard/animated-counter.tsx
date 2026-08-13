@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { animate } from 'framer-motion'
+import { animate, useInView } from 'framer-motion'
 
 export function AnimatedCounter({
   value,
@@ -18,28 +18,20 @@ export function AnimatedCounter({
 }) {
   const [display, setDisplay] = useState(0)
   const ref = useRef<HTMLSpanElement>(null)
-  const started = useRef(false)
+  const isInView = useInView(ref, { once: true, amount: 0.3 })
+  const prevValue = useRef(0)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true
-          const controls = animate(0, value, {
-            duration,
-            ease: 'easeOut',
-            onUpdate: (v) => setDisplay(v),
-          })
-          return () => controls.stop()
-        }
-      },
-      { threshold: 0.3 },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [value, duration])
+    if (isInView) {
+      const controls = animate(prevValue.current, value, {
+        duration,
+        ease: 'easeOut',
+        onUpdate: (v) => setDisplay(v),
+      })
+      prevValue.current = value
+      return () => controls.stop()
+    }
+  }, [value, duration, isInView])
 
   return (
     <span ref={ref} className="tabular-nums">

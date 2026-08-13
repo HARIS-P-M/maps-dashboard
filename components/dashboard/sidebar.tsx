@@ -33,7 +33,7 @@ export function Sidebar({
     <nav aria-label="Primary" className="flex h-full flex-col">
       {/* Brand */}
       <div className="flex h-16 items-center gap-3 px-4">
-        <div className="animate-pulse-ring grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+        <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
           <Sparkles className="size-5" aria-hidden />
         </div>
         <AnimatePresence initial={false}>
@@ -150,14 +150,13 @@ export function Sidebar({
 
   return (
     <>
-      {/* Desktop */}
-      <motion.aside
-        animate={{ width }}
-        transition={{ type: 'spring', stiffness: 300, damping: 34 }}
-        className="sticky top-0 hidden h-dvh shrink-0 border-r border-sidebar-border bg-sidebar/80 backdrop-blur-xl lg:block"
+      {/* Desktop — PERF: CSS transition instead of JS spring animation */}
+      <aside
+        style={{ width }}
+        className="sticky top-0 hidden h-dvh shrink-0 overflow-hidden border-r border-sidebar-border bg-sidebar/80 backdrop-blur-[8px] transition-[width] duration-200 ease-out lg:block"
       >
         {nav}
-      </motion.aside>
+      </aside>
 
       {/* Mobile / tablet drawer */}
       <AnimatePresence>
