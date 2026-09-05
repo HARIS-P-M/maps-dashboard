@@ -1,26 +1,30 @@
 'use client'
 
-import { motion, type HTMLMotionProps } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
-type GlassCardProps = HTMLMotionProps<'div'> & {
+// PERF: Removed motion.div wrapper from GlassCard.
+// Previously every single card on every page was a Framer Motion element,
+// causing dozens of JS animation observers. Now it's a plain div.
+// Animations are handled at the page/section level only where needed.
+
+type GlassCardProps = React.HTMLAttributes<HTMLDivElement> & {
   glow?: boolean
   hover?: boolean
 }
 
 export function GlassCard({ className, glow, hover = true, children, ...props }: GlassCardProps) {
   return (
-    <motion.div
+    <div
       className={cn(
         'glass relative overflow-hidden rounded-2xl',
         glow && 'glow',
-        hover && 'transition-shadow duration-300 hover:shadow-[0_10px_50px_-12px_var(--glow)]',
+        hover && 'transition-shadow duration-200 hover:shadow-[0_8px_36px_-10px_var(--glow)]',
         className,
       )}
       {...props}
     >
       {children}
-    </motion.div>
+    </div>
   )
 }
 

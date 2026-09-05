@@ -41,7 +41,7 @@ function DashboardInner({ isAdminRoute = false }: { isAdminRoute?: boolean }) {
       <div className="relative flex min-h-dvh items-center justify-center p-4">
         {/* Ambient background blur */}
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="animate-aura absolute -left-20 -top-20 size-[32rem] rounded-full bg-destructive/10 blur-[100px]" />
+          <div className="static-aura absolute -left-20 -top-20 size-[32rem] rounded-full bg-destructive/10 blur-[100px]" />
           <div className="grid-bg absolute inset-0 opacity-[0.25]" />
         </div>
         <div className="glass glow relative w-full max-w-md rounded-3xl p-6 text-center space-y-6">
@@ -77,7 +77,7 @@ function DashboardInner({ isAdminRoute = false }: { isAdminRoute?: boolean }) {
       <div className="relative flex min-h-dvh items-center justify-center p-4">
         {/* Ambient background blur */}
         <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div className="animate-aura absolute -left-20 -top-20 size-[32rem] rounded-full bg-primary/10 blur-[100px]" />
+          <div className="static-aura absolute -left-20 -top-20 size-[32rem] rounded-full bg-primary/10 blur-[100px]" />
           <div className="grid-bg absolute inset-0 opacity-[0.25]" />
         </div>
         <div className="glass glow relative w-full max-w-md rounded-3xl p-6 text-center space-y-6">
@@ -109,12 +109,11 @@ function DashboardInner({ isAdminRoute = false }: { isAdminRoute?: boolean }) {
 
   return (
     <div className="relative flex min-h-dvh bg-background text-foreground">
-      {/* Ambient animated aura background */}
+      {/* Ambient static aura background */}
       <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="animate-aura absolute -left-40 -top-40 size-[38rem] rounded-full bg-primary/12 blur-[120px]" />
+        <div className="static-aura absolute -left-40 -top-40 size-[38rem] rounded-full bg-primary/12 blur-[120px]" />
         <div
-          className="animate-aura absolute -bottom-52 -right-40 size-[42rem] rounded-full bg-accent/12 blur-[130px]"
-          style={{ animationDelay: '3s' }}
+          className="static-aura absolute -bottom-52 -right-40 size-[42rem] rounded-full bg-accent/12 blur-[130px]"
         />
         <div className="grid-bg absolute inset-0 opacity-[0.4]" />
       </div>

@@ -17,10 +17,11 @@ import { AnimatedCounter } from '@/components/dashboard/animated-counter'
 import { RadialGauge } from '@/components/dashboard/radial-gauge'
 import { AgentGraph } from '@/components/dashboard/agent-graph'
 import { ProgressAreaChart, LanguageDonut } from '@/components/dashboard/charts'
-import { codingProgress, languageSplit, dailyTasks, achievements } from '@/lib/mock-data'
+import { codingProgress, languageSplit, achievements } from '@/lib/mock-data'
 import type { ViewId } from '@/lib/nav'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/dashboard/auth-context'
+import { useStore } from '@/lib/store'
 
 const container = {
   hidden: {},
@@ -33,15 +34,99 @@ const item = {
 
 export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
   const { user } = useAuth()
-  const [tasks, setTasks] = useState(dailyTasks)
-  const toggle = (id: number) => setTasks((t) => t.map((x) => (x.id === id ? { ...x, done: !x.done } : x)))
-  const doneCount = tasks.filter((t) => t.done).length
+  const {
+    resumeText, jdText, targetRole, targetCompany,
+    coachData, setCoachData, isGeneratingCoach, setIsGeneratingCoach,
+    completedTaskIds, toggleTask,
+    getLiveAtsScore, getLiveInterviewScore, getLiveAptitudeScore,
+    getLivePlacementProb, getLiveStreak, getStudentContext,
+  } = useStore()
+  const [tasks, setTasks] = useState<any[]>([])
+
+  // Load or Generate Coach Data
+  useEffect(() => {
+    let active = true
+
+    async function fetchCoachData() {
+      if (coachData) {
+        setTasks(coachData.todaysTasks.map((t: any, i: number) => ({ ...t, id: i, done: false })))
+        return
+      }
+
+      setIsGeneratingCoach(true)
+      try {
+        const res = await fetch('/api/agents/coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resumeText,
+            jdText,
+            targetRole,
+            targetCompany,
+            weeksToGenerate: 4,
+            studentContext: getStudentContext(),   // ← Pass full intelligence context
+          })
+        })
+        if (res.ok && active) {
+          const data = await res.json()
+          setCoachData(data)
+          setTasks(data.todaysTasks.map((t: any, i: number) => ({ ...t, id: i, done: false })))
+        }
+      } catch (err) {
+        console.error('Failed to load coach data', err)
+      } finally {
+        if (active) setIsGeneratingCoach(false)
+      }
+    }
+
+    fetchCoachData()
+    return () => { active = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coachData])
+
+  const toggle = (id: number) => {
+    // Persist task completion to the store
+    const taskKey = `today-${id}`
+    toggleTask(taskKey)
+    setTasks((t) => t.map((x) => (x.id === id ? { ...x, done: !x.done } : x)))
+  }
+  const doneCount = tasks.length > 0 ? tasks.filter((t) => t.done).length : 0
+
+  // ── Live Stats from real performance data ───────────────────────────────────
+  const liveAts = getLiveAtsScore()
+  const liveInterview = getLiveInterviewScore()
+  const livePlacement = getLivePlacementProb()
+  const liveStreak = getLiveStreak()
 
   const stats = [
-    { label: 'Placement Probability', value: user?.stats.placementProb ?? 79, suffix: '%', delta: '+6%', icon: TrendingUp, color: 'text-chart-1', bg: 'bg-chart-1/15' },
-    { label: 'ATS Resume Score', value: user?.stats.atsScore ?? 88, suffix: '/100', delta: '+12', icon: FileCheck2, color: 'text-chart-2', bg: 'bg-chart-2/15' },
-    { label: 'Interview Readiness', value: user?.stats.interviewReadiness ?? 72, suffix: '%', delta: '+9%', icon: Mic, color: 'text-chart-3', bg: 'bg-chart-3/15' },
-    { label: 'Study Streak', value: user?.stats.streak ?? 32, suffix: ' days', delta: 'Best: 41', icon: Flame, color: 'text-chart-5', bg: 'bg-chart-5/15' },
+    {
+      label: 'Placement Probability',
+      value: livePlacement || (user?.stats.placementProb ?? 0),
+      suffix: '%',
+      delta: livePlacement > 0 ? 'Live AI score' : 'Upload resume',
+      icon: TrendingUp, color: 'text-chart-1', bg: 'bg-chart-1/15',
+    },
+    {
+      label: 'ATS Resume Score',
+      value: liveAts || (user?.stats.atsScore ?? 0),
+      suffix: '/100',
+      delta: liveAts > 0 ? 'From last analysis' : 'Not analyzed',
+      icon: FileCheck2, color: 'text-chart-2', bg: 'bg-chart-2/15',
+    },
+    {
+      label: 'Interview Readiness',
+      value: liveInterview || (user?.stats.interviewReadiness ?? 0),
+      suffix: '%',
+      delta: liveInterview > 0 ? 'From mock sessions' : 'No sessions yet',
+      icon: Mic, color: 'text-chart-3', bg: 'bg-chart-3/15',
+    },
+    {
+      label: 'Study Streak',
+      value: liveStreak,
+      suffix: liveStreak === 1 ? ' day' : ' days',
+      delta: liveStreak > 0 ? 'Keep it up! 🔥' : 'Start today',
+      icon: Flame, color: 'text-chart-5', bg: 'bg-chart-5/15',
+    },
   ]
 
   return (
@@ -79,9 +164,11 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
             <p className="mb-4 font-mono text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
               AI Placement Probability
             </p>
-            <RadialGauge value={user?.stats.placementProb ?? 79} label="on track for offer" />
+            <RadialGauge value={livePlacement || (user?.stats.placementProb ?? 0)} label="on track for offer" />
             <p className="mt-4 max-w-[16rem] text-pretty text-sm text-muted-foreground">
-              Synthesized by 6 agents from your coding, resume, aptitude and interview signals.
+              {livePlacement > 0
+                ? 'Computed live from your resume score, interview performance, aptitude accuracy, and coding stats.'
+                : 'Upload your resume and start practicing to compute your real placement probability.'}
             </p>
           </GlassCard>
         </motion.div>
@@ -132,34 +219,45 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
         <motion.div variants={item}>
           <GlassCard className="h-full p-6">
             <SectionHeading
-              eyebrow={`${doneCount}/${tasks.length} complete`}
-              title="Today's plan"
+              eyebrow={isGeneratingCoach ? 'Generating plan...' : `${doneCount}/${tasks.length} complete`}
+              title="Today's personalized plan"
             />
-            <ul className="space-y-2">
-              {tasks.map((t) => (
-                <li key={t.id}>
-                  <button
-                    onClick={() => toggle(t.id)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-secondary/30 p-3 text-left transition-colors hover:bg-secondary/60"
-                  >
-                    <span
-                      className={`grid size-5 shrink-0 place-items-center rounded-md border transition-colors ${
-                        t.done ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'
-                      }`}
+            {isGeneratingCoach ? (
+              <div className="flex h-32 items-center justify-center text-sm text-muted-foreground animate-pulse">
+                Analyzing your resume...
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="flex h-32 flex-col items-center justify-center text-center text-sm text-muted-foreground">
+                <p>Upload a resume in the Analyzer</p>
+                <p>to get your personalized plan.</p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {tasks.map((t) => (
+                  <li key={t.id}>
+                    <button
+                      onClick={() => toggle(t.id)}
+                      className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-secondary/30 p-3 text-left transition-colors hover:bg-secondary/60"
                     >
-                      {t.done && <Check className="size-3.5" />}
-                    </span>
-                    <span className={`flex-1 text-sm ${t.done ? 'text-muted-foreground line-through' : ''}`}>
-                      {t.title}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono text-[0.65rem] text-primary">
-                      <Zap className="size-3" />
-                      {t.xp}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                      <span
+                        className={`grid size-5 shrink-0 place-items-center rounded-md border transition-colors ${
+                          t.done ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'
+                        }`}
+                      >
+                        {t.done && <Check className="size-3.5" />}
+                      </span>
+                      <span className={`flex-1 text-sm ${t.done ? 'text-muted-foreground line-through' : ''}`}>
+                        {t.title}
+                      </span>
+                      <span className="flex items-center gap-1 font-mono text-[0.65rem] text-primary">
+                        <Zap className="size-3" />
+                        {t.xp || 20}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </GlassCard>
         </motion.div>
 
