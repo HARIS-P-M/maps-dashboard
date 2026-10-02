@@ -4,6 +4,7 @@
 import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { jsonrepair } from 'jsonrepair'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -67,7 +68,7 @@ Ensure the problem reflects the type of DSA problems commonly asked by ${company
       PROBLEM_GEN_PROMPT,
       userMessage,
       [],
-      'llama-3.3-70b-versatile', // Use the more capable model for quality problems
+      AGENT_MODELS.problemGenerator,
       false
     )
 

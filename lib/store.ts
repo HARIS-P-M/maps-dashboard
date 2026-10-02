@@ -356,6 +356,10 @@ export const useStore = create<MapsStore>()(
         },
         removeItem: (name) => localStorage.removeItem(name),
       },
+      onRehydrateStorage: () => (state) => {
+        // A request cannot survive a page reload; never restore a stale spinner.
+        state?.setIsGeneratingCoach(false)
+      },
     }
   )
 )

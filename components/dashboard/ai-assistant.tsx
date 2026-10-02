@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Sparkles, X, Send, Bot, AlertCircle } from 'lucide-react'
 import { useAuth } from '@/components/dashboard/auth-context'
 import { useStreamingAgent } from '@/lib/agents/use-agent'
+import { useStore } from '@/lib/store'
 
 type Msg = { role: 'user' | 'assistant'; text: string }
 
@@ -12,6 +13,7 @@ const WELCOME_MSG = "Hi! I'm ARIA, your AI placement copilot powered by Llama 3.
 
 export function AiAssistant() {
   const { user } = useAuth()
+  const { resumeText, jdText, targetRole, targetCompany } = useStore()
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Msg[]>([
@@ -66,7 +68,27 @@ export function AiAssistant() {
     }))
 
     // Call real Groq streaming API with user stats as context
-    await stream(text, history, user?.stats as Record<string, unknown> | undefined)
+    const documents = [
+      resumeText.trim() ? { name: 'Uploaded resume', text: resumeText } : null,
+      jdText.trim()
+        ? {
+            name: `Job description${targetCompany ? ` - ${targetCompany}` : ''}`,
+            text: jdText,
+          }
+        : null,
+    ].filter((document): document is { name: string; text: string } => document !== null)
+
+    const contextualMessage =
+      documents.length > 0
+        ? `${text}\n\nThe student is targeting: ${targetRole || 'a software role'}.`
+        : text
+
+    await stream(
+      contextualMessage,
+      history,
+      user?.stats as Record<string, unknown> | undefined,
+      documents
+    )
 
     // Done streaming — lock in the final message
     streamingIndexRef.current = null
@@ -117,6 +139,11 @@ export function AiAssistant() {
                   <span className={`size-1.5 rounded-full ${isLoading ? 'bg-yellow-400 animate-pulse' : 'bg-success'}`} />
                   {isLoading ? 'Thinking…' : 'Online · Groq / Llama 3.1'}
                 </p>
+                {(resumeText.trim() || jdText.trim()) && !isLoading && (
+                  <p className="mt-0.5 text-[10px] text-primary/80">
+                    Using your {resumeText.trim() && jdText.trim() ? 'resume and job description' : resumeText.trim() ? 'resume' : 'job description'}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { QUESTION_GENERATOR_PROMPT } from '@/lib/agents/agent-prompts'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -24,7 +25,7 @@ Please generate the mock interview questions based on the candidate's profile an
       QUESTION_GENERATOR_PROMPT,
       userMessage,
       [],
-      'llama-3.1-8b-instant'
+      AGENT_MODELS.questionGenerator
     )
 
     // Try to parse JSON array from model output

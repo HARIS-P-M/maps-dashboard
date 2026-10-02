@@ -3,7 +3,9 @@
 // Accepts multipart form-data with a file field named "file"
 
 import { NextRequest } from 'next/server'
-import pdfParse from 'pdf-parse'
+// Avoid pdf-parse's package-root debug harness, which reads a missing test PDF
+// when the route is evaluated by Next.js.
+import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 import * as mammoth from 'mammoth'
 
 export const runtime = 'nodejs'

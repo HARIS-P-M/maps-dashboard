@@ -42,6 +42,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
     getLivePlacementProb, getLiveStreak, getStudentContext,
   } = useStore()
   const [tasks, setTasks] = useState<any[]>([])
+  const [coachError, setCoachError] = useState<string | null>(null)
 
   // Load or Generate Coach Data
   useEffect(() => {
@@ -54,10 +55,14 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
       }
 
       setIsGeneratingCoach(true)
+      setCoachError(null)
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 45000)
       try {
         const res = await fetch('/api/agents/coach', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             resumeText,
             jdText,
@@ -67,14 +72,29 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
             studentContext: getStudentContext(),   // ← Pass full intelligence context
           })
         })
-        if (res.ok && active) {
-          const data = await res.json()
+        const data = await res.json()
+        if (!res.ok) {
+          if (active) {
+            setCoachError(data.error || `Coach Agent request failed (${res.status})`)
+          }
+          return
+        }
+        if (active) {
           setCoachData(data)
           setTasks(data.todaysTasks.map((t: any, i: number) => ({ ...t, id: i, done: false })))
         }
       } catch (err) {
-        console.error('Failed to load coach data', err)
+        if (active) {
+          setCoachError(
+            err instanceof DOMException && err.name === 'AbortError'
+              ? 'Coach Agent took too long to respond. Please try again.'
+              : err instanceof Error
+                ? err.message
+                : 'Coach Agent is unavailable'
+          )
+        }
       } finally {
+        window.clearTimeout(timeoutId)
         if (active) setIsGeneratingCoach(false)
       }
     }
@@ -225,6 +245,12 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
             {isGeneratingCoach ? (
               <div className="flex h-32 items-center justify-center text-sm text-muted-foreground animate-pulse">
                 Analyzing your resume...
+              </div>
+            ) : coachError ? (
+              <div className="flex h-32 flex-col items-center justify-center text-center text-sm text-destructive">
+                <p>Coach Agent unavailable.</p>
+                <p className="mt-1 max-w-xs text-xs text-muted-foreground">{coachError}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Configure GROQ_API_KEY and restart the server.</p>
               </div>
             ) : tasks.length === 0 ? (
               <div className="flex h-32 flex-col items-center justify-center text-center text-sm text-muted-foreground">

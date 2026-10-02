@@ -42,29 +42,6 @@ type AptitudeQuestion = {
   fullSolution?: string
 }
 
-const buildLocalFallbackQuestion = (topic: string): AptitudeQuestion => {
-  if (topic === 'Time, Speed & Distance') {
-    return {
-      question: 'A train of length 150 m runs at 54 km/h. How much time will it take to cross a pole?',
-      options: ['8 s', '10 s', '12 s', '15 s'],
-      correctIndex: 1,
-      keyTakeaway: 'Convert km/h to m/s before using distance ÷ speed.',
-      finalAnswer: '10 s',
-      numericSolution: 'Speed = 54 × 5/18 = 15 m/s; Time = 150/15 = 10 s',
-      steps: [{ title: 'Step 1', content: 'Use $t = \\frac{d}{v}$ after converting units.' }],
-    }
-  }
-  return {
-    question: `In ${topic}, if an event has probability 0.3, what is the probability of its complement?`,
-    options: ['0.3', '0.5', '0.7', '1.3'],
-    correctIndex: 2,
-    keyTakeaway: 'Complement probability is $1 - P(E)$.',
-    finalAnswer: '0.7',
-    numericSolution: 'P(complement) = 1 - 0.3 = 0.7',
-    steps: [{ title: 'Step 1', content: 'Apply complement rule: $P(E^c)=1-P(E)$.' }],
-  }
-}
-
 export function Aptitude() {
   const { aptitudeStats, recordAptitudeAttempt, addAptitudeGeneratedQuestion, getAptitudeRecentQuestions } = useStore()
   
@@ -74,10 +51,12 @@ export function Aptitude() {
   const [visibleSteps, setVisibleSteps] = useState(1)
   const [selectedTopic, setSelectedTopic] = useState('Time, Speed & Distance')
   const [debugVisible, setDebugVisible] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const answered = picked !== null
 
   const fetchNextQuestion = async (topic = selectedTopic) => {
     setLoading(true)
+    setError(null)
     setPicked(null)
     setCurrentQuestion(null)
 
@@ -118,9 +97,9 @@ export function Aptitude() {
       const qtext = String(data.question || '').trim()
       if (qtext) addAptitudeGeneratedQuestion(topic, qtext)
       setVisibleSteps(1)
-    } catch (err: any) {
-      console.warn('Aptitude Agent fallback triggered:', err.message)
-      setCurrentQuestion(buildLocalFallbackQuestion(topic))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Aptitude Agent is unavailable'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -238,6 +217,28 @@ export function Aptitude() {
               >
                 <Loader2 className="mb-4 size-8 animate-spin text-primary" />
                 <p>Generating a unique challenging question...</p>
+              </motion.div>
+            ) : error ? (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex min-h-64 flex-col items-center justify-center gap-4 text-center"
+              >
+                <XCircle className="size-10 text-destructive" />
+                <div>
+                  <p className="font-medium text-foreground">Aptitude Agent unavailable</p>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">{error}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Configure GROQ_API_KEY in .env.local and restart the server.
+                  </p>
+                </div>
+                <button
+                  onClick={() => fetchNextQuestion(selectedTopic)}
+                  className="rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                >
+                  Retry
+                </button>
               </motion.div>
             ) : currentQuestion ? (
               <motion.div

@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { COMPANY_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -52,16 +53,16 @@ ${resumeBlock}
 Provide:
 1. A match score (0-100) BASED ON THEIR ACTUAL PERFORMANCE DATA, not generic estimates.
 2. The specific skill gaps for ${companyName} given their real weak areas.
-3. The exact interview process for ${companyName} (all rounds, OA, etc.).
+3. The commonly reported interview stages for ${companyName} (all rounds, OA, etc.). Clearly label details that may vary by role, location, or hiring cycle, and do not present unverified information as current fact.
 4. A REALISTIC 2-week targeted prep timeline for this specific company.
-5. Insider tips unique to ${companyName}'s hiring style.
+5. Practical preparation tips based only on the supplied context and generally known hiring patterns. Do not claim access to insider information.
 `
 
     const raw = await generateText(
       COMPANY_AGENT_PROMPT,
       userMessage,
       [],
-      'llama-3.3-70b-versatile'
+      AGENT_MODELS.company
     )
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)

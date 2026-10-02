@@ -9,47 +9,91 @@ import { spawn } from 'child_process'
 import { writeFile, unlink } from 'fs/promises'
 import path from 'path'
 import os from 'os'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
-// Helper to execute python code locally with a timeout
+const BLOCKED_CODE_PATTERNS = [
+  /\b(?:os|sys|subprocess|socket|requests|urllib|http|ftplib|shutil|pathlib|ctypes)\b/,
+  /\b(?:open|eval|exec|compile|__import__|globals|locals|input)\s*\(/,
+  /(?:__class__|__subclasses__|__globals__|__builtins__)/,
+]
+
+function validateStudentCode(code: string): void {
+  if (typeof code !== 'string' || code.length > 30_000) {
+    throw new Error('Submitted code is missing or exceeds the 30,000 character limit.')
+  }
+  if (BLOCKED_CODE_PATTERNS.some((pattern) => pattern.test(code))) {
+    throw new Error('This coding evaluator only supports self-contained algorithm code without system, network, or file access.')
+  }
+}
+
+// Helper to execute restricted Python code locally with a timeout.
 async function runPython(code: string, input: string): Promise<{ stdout: string, stderr: string }> {
-  return new Promise(async (resolve) => {
-    const tmpDir = os.tmpdir()
-    const fileName = `maps_temp_${Date.now()}_${Math.floor(Math.random() * 1000)}.py`
-    const filePath = path.join(tmpDir, fileName)
-    
+  validateStudentCode(code)
+  const tmpDir = os.tmpdir()
+  const fileName = `maps_temp_${Date.now()}_${Math.floor(Math.random() * 1000)}.py`
+  const filePath = path.join(tmpDir, fileName)
+
+  try {
     await writeFile(filePath, code)
-    
-    const pyProcess = spawn('python', [filePath])
-    
-    let stdout = ''
-    let stderr = ''
-    
-    const timeout = setTimeout(() => {
-      pyProcess.kill()
-      stderr += '\nError: Execution Timed Out (Max 3s)'
-    }, 3000)
-    
-    pyProcess.stdout.on('data', (data) => {
-      stdout += data.toString()
+    return await new Promise((resolve) => {
+      const executionEnv: NodeJS.ProcessEnv = {
+        NODE_ENV: process.env.NODE_ENV ?? 'production',
+        PATH: process.env.PATH ?? '',
+        SystemRoot: process.env.SystemRoot ?? '',
+        TEMP: process.env.TEMP ?? tmpDir,
+        TMP: process.env.TMP ?? tmpDir,
+      }
+      const pyProcess = spawn('python', ['-I', filePath], {
+        cwd: tmpDir,
+        env: executionEnv,
+        windowsHide: true,
+      })
+
+      let stdout = ''
+      let stderr = ''
+      let settled = false
+      let timeout: NodeJS.Timeout
+      const finish = (result: { stdout: string; stderr: string }) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        void unlink(filePath).catch(() => undefined)
+        resolve(result)
+      }
+
+      timeout = setTimeout(() => {
+        pyProcess.kill()
+        finish({ stdout, stderr: `${stderr}\nError: Execution Timed Out (Max 3s)` })
+      }, 3000)
+
+      pyProcess.on('error', (error) => {
+        finish({ stdout, stderr: `${stderr}\nError: Unable to start Python: ${error.message}` })
+      })
+      pyProcess.stdout.on('data', (data) => {
+        stdout += data.toString()
+        if (stdout.length > 100_000) {
+          pyProcess.kill()
+          finish({ stdout: stdout.slice(0, 100_000), stderr: `${stderr}\nError: Output exceeded the 100KB limit` })
+        }
+      })
+      pyProcess.stderr.on('data', (data) => {
+        stderr += data.toString()
+        if (stderr.length > 100_000) {
+          pyProcess.kill()
+          finish({ stdout, stderr: `${stderr.slice(0, 100_000)}\nError: Error output exceeded the 100KB limit` })
+        }
+      })
+      pyProcess.on('close', () => finish({ stdout, stderr }))
+
+      if (input) pyProcess.stdin.write(`${input}\n`)
+      pyProcess.stdin.end()
     })
-    
-    pyProcess.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-    
-    pyProcess.on('close', async () => {
-      clearTimeout(timeout)
-      try { await unlink(filePath) } catch {}
-      resolve({ stdout, stderr })
-    })
-    
-    if (input) {
-      pyProcess.stdin.write(input + '\n')
-    }
-    pyProcess.stdin.end()
-  })
+  } catch (error) {
+    await unlink(filePath).catch(() => undefined)
+    throw new Error(`Unable to prepare code execution: ${error instanceof Error ? error.message : 'unknown error'}`)
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -64,8 +108,25 @@ export async function POST(req: NextRequest) {
       optimalSolutionPython = '',
     } = await req.json()
 
-    if (!problemStatement) {
+    if (typeof problemStatement !== 'string' || problemStatement.length > 30_000) {
       return Response.json({ error: 'problemStatement is required' }, { status: 400 })
+    }
+    if (action !== 'hint' && action !== 'execute') {
+      return Response.json({ error: 'action must be hint or execute' }, { status: 400 })
+    }
+    if (!Array.isArray(judge0TestCases) || judge0TestCases.length > 50) {
+      return Response.json({ error: 'At most 50 test cases are allowed.' }, { status: 400 })
+    }
+    if (
+      judge0TestCases.some(
+        (testCase: { input?: unknown; output?: unknown }) =>
+          typeof testCase.input !== 'string' ||
+          typeof testCase.output !== 'string' ||
+          testCase.input.length > 10_000 ||
+          testCase.output.length > 10_000
+      )
+    ) {
+      return Response.json({ error: 'Each test case input and output must be text of 10,000 characters or less.' }, { status: 400 })
     }
 
     let userMessage = ''
@@ -86,6 +147,11 @@ Hint level requested: ${hintLevel} (1=conceptual, 2=approach, 3=implementation d
 Please give a Level ${hintLevel} hint. Do NOT give the full solution.
 `
     } else if (action === 'execute') {
+      if (!userCode || typeof userCode !== 'string') {
+        return Response.json({ error: 'userCode is required for execution.' }, { status: 400 })
+      }
+      validateStudentCode(userCode)
+
       // 1. Actually execute the code against all test cases locally
       allPassed = true
       
@@ -136,7 +202,7 @@ Do NOT guess whether they passed or failed — use the actual compiler results p
       CODING_AGENT_PROMPT,
       userMessage,
       [],
-      'llama-3.1-8b-instant'
+      AGENT_MODELS.coding
     )
 
     // Parse JSON

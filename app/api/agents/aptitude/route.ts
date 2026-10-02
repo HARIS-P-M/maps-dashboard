@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { generateText } from '../../../../lib/agents/groq-client'
 import { APTITUDE_AGENT_PROMPT } from '../../../../lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -258,6 +259,13 @@ const buildTopicFallbackQuestion = (topic: string, subtopic?: string | null, rec
 
 export async function POST(req: NextRequest) {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      return Response.json(
+        { error: 'GROQ_API_KEY is not configured. The Aptitude Agent is unavailable.' },
+        { status: 503 }
+      )
+    }
+
     const {
       topic = 'General Aptitude',
       subtopic,
@@ -338,7 +346,7 @@ The question must be fresh, practical, and test real placement exam skills.`
           systemPrompt,
           userMessage,
           [],
-          'llama-3.1-8b-instant',
+          AGENT_MODELS.aptitude,
           true // jsonMode = true -> ask Groq SDK for JSON object response when supported
         )
       } catch (e) {
@@ -402,16 +410,18 @@ The question must be fresh, practical, and test real placement exam skills.`
     }
 
     if (!result) {
-      const fallback = buildTopicFallbackQuestion(String(topic), subtopic || null, scopedRecentQuestions)
-      ;(fallback as any)._generatedBy = 'server-topic-fallback'
-      return Response.json(fallback, { status: 200 })
+      return Response.json(
+        { error: 'Aptitude Agent could not generate a valid question. Check GROQ_API_KEY and try again.' },
+        { status: 502 }
+      )
     }
 
     // Final topic guard: if question text still doesn't align, switch to deterministic topic fallback.
     if (!isQuestionAlignedToTopic(String(topic), String(result.question || ''))) {
-      const fallback = buildTopicFallbackQuestion(String(topic), subtopic || null, scopedRecentQuestions)
-      ;(fallback as any)._generatedBy = 'server-topic-fallback-final-guard'
-      result = fallback
+      return Response.json(
+        { error: 'Aptitude Agent returned a question for the wrong topic. Try again.' },
+        { status: 502 }
+      )
     } else {
       result.topic = topic
       result.subtopic = subtopic || null

@@ -1,4 +1,36 @@
-# maps-dashboard
+# MAPS Dashboard
+
+MAPS (Multi-Agent Placement Preparation System) is a Next.js dashboard that
+coordinates specialized AI agents for resume analysis, coding practice,
+aptitude training, interview preparation, company research, and personalized
+roadmaps.
+
+## Groq model policy
+
+All AI calls use Groq through the shared client in
+`lib/agents/groq-client.ts`. Models are selected centrally in
+`lib/agents/model-registry.ts`:
+
+| Tier | Agents | Default |
+| --- | --- | --- |
+| Fast | ARIA chat, coordinator, aptitude, interview-question generation | `openai/gpt-oss-20b` |
+| Reasoning | Resume, coding evaluation, interview scoring, company, coach, problem generation | `openai/gpt-oss-120b` |
+
+Set `GROQ_MODEL_FAST` and `GROQ_MODEL_REASONING` in `.env.local` when your
+Groq account enables newer model IDs. This keeps model migrations isolated to
+configuration rather than individual API routes. Use a fast model for
+high-volume short structured responses and a reasoning model for long,
+personalized analysis and code-related evaluation.
+
+## Grounded ARIA context
+
+After a resume or job description is parsed in the Resume section, ARIA can use
+that text when answering follow-up questions. The chat route bounds the attached
+context to 12,000 characters and labels it as untrusted reference material, so
+instructions embedded in uploaded documents are not treated as agent commands.
+This is intentionally a local, request-scoped retrieval step; a durable vector
+store should only be introduced alongside document ownership, deletion, and
+retention controls.
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
 

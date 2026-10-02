@@ -42,13 +42,13 @@ enum Role {
 model UserStats {
   id                 String   @id @default(cuid())
   userId             String   @unique
-  placementProb      Float    @default(50)
-  atsScore           Int      @default(60)
-  interviewReadiness Float    @default(50)
+  placementProb      Float    @default(0)
+  atsScore           Int      @default(0)
+  interviewReadiness Float    @default(0)
   streak             Int      @default(0)
   longestStreak      Int      @default(0)
   problemsSolved     Int      @default(0)
-  accuracy           Float    @default(70)
+  accuracy           Float    @default(0)
   mockInterviews     Int      @default(0)
   activeDays         Int      @default(0)
   xp                 Int      @default(0)

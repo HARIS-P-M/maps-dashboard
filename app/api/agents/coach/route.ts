@@ -5,11 +5,19 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { COACH_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    if (!process.env.GROQ_API_KEY) {
+      return Response.json(
+        { error: 'GROQ_API_KEY is not configured. The Coach Agent is unavailable.' },
+        { status: 503 }
+      )
+    }
+
     const {
       resumeText,
       jdText,
@@ -64,7 +72,7 @@ IMPORTANT INSTRUCTIONS:
       COACH_AGENT_PROMPT,
       userMessage,
       [],
-      'llama-3.3-70b-versatile'   // Use stronger model for the main coaching plan
+      AGENT_MODELS.coach
     )
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)

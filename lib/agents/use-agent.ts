@@ -4,7 +4,7 @@
 
 import { useState, useCallback } from 'react'
 
-export type AgentName = 'chat' | 'resume' | 'coding' | 'interview' | 'coach' | 'company'
+export type AgentName = 'chat' | 'orchestrator' | 'resume' | 'coding' | 'interview' | 'coach' | 'company'
 
 type AgentState<T> = {
   data: T | null
@@ -72,7 +72,8 @@ export function useStreamingAgent() {
     async (
       message: string,
       history: { role: 'user' | 'assistant'; text: string }[],
-      userStats?: Record<string, unknown>
+      userStats?: Record<string, unknown>,
+      documents?: { name: string; text: string }[]
     ): Promise<string> => {
       setIsLoading(true)
       setError(null)
@@ -84,7 +85,7 @@ export function useStreamingAgent() {
         const res = await fetch('/api/agents/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message, history, userStats }),
+          body: JSON.stringify({ message, history, userStats, documents }),
         })
 
         if (!res.ok || !res.body) {

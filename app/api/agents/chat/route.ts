@@ -4,12 +4,14 @@
 import { NextRequest } from 'next/server'
 import { generateStream } from '@/lib/agents/groq-client'
 import { ORCHESTRATOR_PROMPT } from '@/lib/agents/agent-prompts'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { buildDocumentContext } from '@/lib/agents/document-context'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history = [], userStats } = await req.json()
+    const { message, history = [], userStats, documents = [] } = await req.json()
 
     if (!message || typeof message !== 'string') {
       return Response.json({ error: 'message is required' }, { status: 400 })
@@ -29,7 +31,8 @@ CURRENT STUDENT STATS (use these to give personalized advice):
 `
     }
 
-    const systemPrompt = ORCHESTRATOR_PROMPT + contextBlock
+    const documentContext = Array.isArray(documents) ? buildDocumentContext(documents) : ''
+    const systemPrompt = ORCHESTRATOR_PROMPT + contextBlock + documentContext
 
     // Convert UI history format to Groq message format
     const groqHistory = history.map((m: { role: string; text: string }) => ({
@@ -37,7 +40,7 @@ CURRENT STUDENT STATS (use these to give personalized advice):
       content: m.text,
     }))
 
-    const stream = await generateStream(systemPrompt, message, groqHistory)
+    const stream = await generateStream(systemPrompt, message, groqHistory, AGENT_MODELS.chat)
 
     return new Response(stream, {
       headers: {

@@ -4,6 +4,7 @@
 import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { RESUME_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -29,7 +30,7 @@ ${resumeText}
       RESUME_AGENT_PROMPT,
       userMessage,
       [],
-      'llama-3.1-8b-instant'
+      AGENT_MODELS.resume
     )
 
     // Try to parse JSON from model output

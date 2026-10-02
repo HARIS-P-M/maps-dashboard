@@ -29,14 +29,14 @@ type AuthCtx = {
 }
 
 const defaultStats: UserStats = {
-  placementProb: 74,
-  atsScore: 78,
-  interviewReadiness: 68,
-  streak: 32,
-  problemsSolved: 74,
-  accuracy: 78,
-  mockInterviews: 8,
-  activeDays: 32,
+  placementProb: 0,
+  atsScore: 0,
+  interviewReadiness: 0,
+  streak: 0,
+  problemsSolved: 0,
+  accuracy: 0,
+  mockInterviews: 0,
+  activeDays: 0,
 }
 
 const Ctx = createContext<AuthCtx>({

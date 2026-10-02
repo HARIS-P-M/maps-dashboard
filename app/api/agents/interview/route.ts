@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { INTERVIEW_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
+import { AGENT_MODELS } from '@/lib/agents/model-registry'
 
 export const runtime = 'nodejs'
 
@@ -59,7 +60,7 @@ Evaluate this answer:
       INTERVIEW_AGENT_PROMPT,
       userMessage,
       [],
-      'llama-3.3-70b-versatile'   // Stronger model for high-quality evaluation
+      AGENT_MODELS.interview
     )
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/)

@@ -105,12 +105,7 @@ export function Interview() {
         setQuestions(data)
       } catch (err: any) {
         setGenError(err.message)
-        // Fallback generic questions if AI generation fails
-        setQuestions([
-          { q: 'Tell me about a time you handled a production incident.', tag: 'Behavioral' },
-          { q: 'Design a URL shortener. Walk me through the data model.', tag: 'System Design' },
-          { q: 'Why do you want to join our team specifically?', tag: 'Motivational' },
-        ])
+        setQuestions([])
       } finally {
         setIsGenerating(false)
       }
@@ -156,7 +151,6 @@ export function Interview() {
             // Ignore no-speech errors (common when user is silent)
             return
           }
-          console.error('Speech recognition error', event.error)
           if (event.error === 'not-allowed') {
             setSpeechError('Microphone access denied. Please allow microphone permissions in your browser.')
           } else {
@@ -210,7 +204,6 @@ export function Interview() {
         setSeconds(0)
       } catch (err: any) {
         recognitionStateRef.current = 'idle'
-        console.error('Failed to start recording', err)
         if (err?.name === 'InvalidStateError') {
           // start() called while recognition is already active/stopping in the browser internals
           setRecording(true)
