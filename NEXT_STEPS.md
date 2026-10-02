@@ -48,6 +48,33 @@ The core modules are:
 
 ## 3. Current implementation status
 
+### Plain-language status
+
+The project is **not production-complete yet**. The dashboard and admin page
+can be opened, but the admin page is currently a UI prototype. It must not
+yet be used to manage real students.
+
+The admin database foundation has been started in
+`prisma/schema.prisma`, but the database tables, authentication, admin APIs,
+and real UI integration are still unfinished.
+
+The work must be completed in this order:
+
+1. Configure Supabase and verify the environment variables.
+2. Choose npm as the only package manager and clean up the lockfiles.
+3. Generate and apply the Prisma migration.
+4. Replace localStorage login with Supabase Auth.
+5. Add server-side current-user and admin authorization helpers.
+6. Build and test the admin API routes.
+7. Replace hardcoded admin data with database-backed API data.
+8. Persist student progress and agent results.
+9. Add runtime validation, rate limiting, logging, privacy, and deletion.
+10. Add automated tests and complete lint/build/deployment validation.
+
+Do not skip authentication or server-side authorization in order to make the
+admin screens appear functional. Client-side role checks and localStorage are
+not security controls.
+
 ### Implemented
 
 - Next.js application with dashboard navigation and section routing.
@@ -67,6 +94,9 @@ The core modules are:
 - Production builds are no longer configured to ignore TypeScript errors.
 - New local demo users start with zero performance metrics instead of fabricated
   non-zero scores.
+- Prisma schema now includes user status, admin audit logs, announcements,
+  system settings, and per-agent configuration models. These changes still
+  require a database migration after Supabase is configured.
 - `npm run build` has been verified successfully after the latest TypeScript
   fix. The build currently lists the expected dashboard, admin, agent API, and
   document-parser routes.
@@ -80,6 +110,35 @@ storage.
 
 The next developer must replace this with Supabase Auth and PostgreSQL before
 calling the system production-ready.
+
+### What to do immediately
+
+Do not expose or commit `.env.local`. From a terminal in the project root,
+verify that the required variables exist without printing their secret values.
+After confirming that the Prisma schema contains the Supabase Auth user
+mapping described in Phase 3, run:
+
+```cmd
+npm install
+npx prisma validate
+npx prisma generate
+npx prisma migrate dev --name initial_database
+```
+
+If the migration command fails, fix the database connection or schema error
+before writing admin API code. Do not replace a failed migration with mock
+data. After the migration succeeds, implement `current-user` and
+`require-admin` helpers before adding any admin mutation.
+
+The first functional admin milestone is:
+
+- A real admin can sign in.
+- An unauthenticated request receives `401`.
+- An authenticated student receives `403`.
+- An authorized admin can list persisted students with pagination.
+- Every privileged mutation is recorded in `AdminAuditLog`.
+
+Only after that milestone should the admin UI be changed from hardcoded data.
 
 ### Audit findings and known cleanup
 
@@ -98,9 +157,9 @@ calling the system production-ready.
 - The local Python coding evaluator is improved for demonstration use but is
   not a production sandbox. Replace it with an isolated judge before public
   deployment.
-- `npm run lint` is currently not runnable until ESLint and the Next.js ESLint
-  configuration are added to the project. Do not claim lint validation passed
-  until that setup exists.
+- ESLint and `eslint-config-next` are listed in `package.json`, but no
+  `eslint.config.mjs` file currently exists. Add the configuration and run
+  `npm run lint`; do not claim lint validation passed until it succeeds.
 - No test script or test suite is currently present in `package.json`; add the
   test tooling and tests before claiming full validation.
 
@@ -140,13 +199,12 @@ Before changing features:
    tracking `pnpm-lock.yaml` only after confirming the team has chosen npm.
    If the team chooses pnpm instead, do the opposite and update every command
    in this document.
-2. Install and configure lint/test tooling if it is not already present. The
-   current repository does not include an `eslint` executable or a `test`
-   script. Then run:
+2. Install dependencies and configure lint/test tooling. ESLint and
+   `eslint-config-next` are already listed in `package.json`, but the project
+   still needs an ESLint configuration and a test script. Run:
 
    ```cmd
    npm install
-   npm install --save-dev eslint eslint-config-next
    npm run lint
    npm run build
    ```
@@ -219,6 +277,21 @@ Add a server helper such as `lib/auth/current-user.ts` that:
 
 Do not accept `userId` from request JSON as an identity source.
 
+The Prisma `User` record must have an explicit, unique mapping to the
+Supabase Auth user, for example:
+
+```prisma
+authUserId String @unique
+```
+
+Use that mapping for every session-to-application-user lookup. Do not assume
+that the Prisma `cuid()` primary key is the same value as the Supabase Auth
+user ID unless the schema is deliberately changed to use the Auth UUID.
+
+Define and document a secure admin bootstrap procedure before enabling the
+admin panel. The first admin must be created or promoted through a controlled
+server-side/database operation, never by accepting a client-supplied role.
+
 ## 8. Phase 4: complete the Prisma data model
 
 The existing schema is in `prisma/schema.prisma`. Keep the existing core
@@ -290,7 +363,8 @@ Change new-user score defaults from fabricated non-zero values to zero or null.
 The UI must display `Not assessed yet` when a metric has no evidence.
 
 There are currently no migrations in the repository. After configuring
-`DATABASE_URL` and `DIRECT_URL`, create the first migration:
+`DATABASE_URL` and `DIRECT_URL`, adding the Auth-user mapping, and reviewing
+the complete schema, create the first migration:
 
 ```cmd
 npx prisma generate
@@ -369,7 +443,158 @@ If validation fails:
 The coordinator must only select known agent names and must return valid order
 values. Never execute an arbitrary agent name returned by the model.
 
-## 11. Phase 7: improve the adaptive learning loop
+## 11. Phase 7: implement the admin dashboard completely
+
+The current admin screens are UI prototypes with hardcoded data and local
+component state. They must not be used to manage real students until the
+server-side admin layer is implemented.
+
+### Secure admin authorization
+
+Before every admin operation:
+
+1. Read the authenticated Supabase session on the server.
+2. Load the application user by the verified auth user ID.
+3. Confirm `User.role = ADMIN`.
+4. Return `401` when unauthenticated and `403` when authenticated but not an
+   administrator.
+5. Never authorize from the `/admin` URL, a client-side role value, a username,
+   or localStorage.
+
+Create a reusable server helper such as
+`lib/auth/require-admin.ts`. Every admin API route must use it.
+
+### Admin API routes
+
+Add authenticated, validated routes for:
+
+- `GET /api/admin/overview`
+  - total users
+  - active users
+  - recent activity
+  - aggregate preparation metrics
+  - agent request/error counts
+- `GET /api/admin/users`
+  - pagination
+  - search
+  - role/status filtering
+- `GET /api/admin/users/[id]`
+  - profile
+  - target role
+  - resume summary
+  - coding, aptitude, interview, and roadmap progress
+- `PATCH /api/admin/users/[id]`
+  - approved profile fields
+  - account status
+- `DELETE /api/admin/users/[id]`
+  - require explicit confirmation
+  - delete or anonymize owned application data
+- `GET /api/admin/agents`
+  - approved agent configuration and health metrics
+- `PATCH /api/admin/agents/[agentName]`
+  - validated enable/disable state
+  - approved model configuration
+  - bounded temperature/token settings
+- `GET /api/admin/settings`
+- `PATCH /api/admin/settings`
+  - feature flags
+  - registration state
+  - maintenance mode
+- `POST /api/admin/announcements`
+  - create a persisted announcement or notification
+
+Do not allow arbitrary database field updates. Use explicit allowlists and
+runtime validation for every route.
+
+### Admin data model
+
+Add or complete these models as required:
+
+- `User.status` with an explicit enum such as `ACTIVE`, `SUSPENDED`, and
+  `DELETED` or an equivalent safe deletion strategy.
+- `SystemSetting`
+  - key
+  - typed value
+  - updated by
+  - updated timestamp
+- `Announcement`
+  - message
+  - audience
+  - created by
+  - published/expiry timestamps
+- `AdminAuditLog`
+  - admin user
+  - action
+  - target type and target ID
+  - safe metadata
+  - timestamp
+- `AgentConfig`
+  - stable agent name
+  - enabled state
+  - approved model ID
+  - bounded generation settings
+  - updated by
+
+Never store API keys in these tables. Keep secrets in server environment
+variables.
+
+### Admin UI requirements
+
+Replace the mock behavior in:
+
+- `components/sections/admin/admin-overview.tsx`
+- `components/sections/admin/admin-users.tsx`
+- `components/sections/admin/admin-agents.tsx`
+- `components/sections/admin/admin-settings.tsx`
+
+The UI must:
+
+- Load data from the admin API routes.
+- Show loading, empty, error, and unauthorized states.
+- Use pagination rather than loading every student at once.
+- Require confirmation for suspension, deletion, cache resets, and maintenance
+  mode.
+- Display `Not available` instead of fabricated monitoring values.
+- Show timestamps and the source of aggregate metrics.
+- Refresh data after successful mutations.
+- Prevent duplicate submissions.
+- Never expose stack traces, secrets, or raw provider errors.
+- Show a visible audit-friendly success message after mutations.
+
+### Admin dashboard behavior
+
+Implement these real capabilities:
+
+- Overview cards based on database queries, not constants.
+- Student search, filtering, pagination, and detail view.
+- Progress monitoring across resume, coding, aptitude, interview, and roadmap.
+- Account suspension/reactivation.
+- Safe data deletion.
+- Persisted announcements delivered through `Notification`.
+- Persisted feature flags read by student-facing routes/components.
+- Agent configuration read by the shared server agent client.
+- Agent health/error metrics from server-side request records.
+- Admin audit history for all privileged mutations.
+
+Do not claim to show CPU, RAM, uptime, or live node health unless a real
+monitoring provider supplies those values. Use an explicit `Unavailable` state
+for infrastructure metrics that are not instrumented.
+
+### Admin tests
+
+Add tests for:
+
+- Unauthenticated admin request -> `401`.
+- Student requesting admin route -> `403`.
+- Admin listing users with pagination.
+- Cross-user detail access controlled by admin authorization.
+- Invalid settings/model values rejected.
+- Student suspension prevents student access as intended.
+- Deletion removes or anonymizes owned data.
+- Every privileged mutation creates an audit record.
+- Admin UI handles loading, empty, error, and unauthorized states.
+
+## 12. Phase 8: improve the adaptive learning loop
 
 The coordinator and coach must use real database-backed evidence.
 
@@ -396,7 +621,7 @@ Rules:
 The readiness score must be clearly labeled as an internal preparation
 indicator, not a probability of employment.
 
-## 12. Phase 8: agent guardrails and runtime safety
+## 13. Phase 9: agent guardrails and runtime safety
 
 The shared guardrails in `lib/agents/groq-client.ts` must remain active for
 every model call.
@@ -425,7 +650,7 @@ service or isolated container that has:
 
 Pattern blocking alone is not a complete sandbox.
 
-## 13. Phase 9: frontend integration
+## 14. Phase 10: frontend integration
 
 Replace client-only writes with API/database mutations while retaining Zustand
 for optimistic UI state where appropriate.
@@ -444,7 +669,7 @@ The UI must:
 - Preserve accessibility: labels, keyboard navigation, focus states, and
   screen-reader status messages.
 
-## 14. Phase 10: rate limiting, observability, and privacy
+## 15. Phase 11: rate limiting, observability, and privacy
 
 Add server-side protections before public deployment:
 
@@ -467,7 +692,7 @@ Add a simple privacy policy and explain:
 Implement deletion for resumes, attempts, sessions, roadmap data, and profile
 data. Deletion must be scoped to the authenticated user.
 
-## 15. Phase 11: testing requirements
+## 16. Phase 12: testing requirements
 
 ### Unit tests
 
@@ -534,7 +759,7 @@ If `npm test` reports that no script exists, add a test script and a real test
 suite before claiming the project is complete. A successful production build
 does not replace linting or automated tests.
 
-## 16. Definition of done
+## 17. Definition of done
 
 The project is complete only when all of the following are true:
 
@@ -554,7 +779,7 @@ The project is complete only when all of the following are true:
 - Lint, build, unit tests, API tests, and the main end-to-end flow pass.
 - Environment secrets are documented but never committed.
 
-## 17. Recommended implementation order
+## 18. Recommended implementation order
 
 Complete the work in this order:
 
@@ -565,13 +790,80 @@ Complete the work in this order:
 5. Prisma migrations and preparation models.
 6. Replace localStorage persistence with database-backed APIs.
 7. Add runtime schemas for every agent response.
-8. Persist resume, coding, aptitude, interview, and roadmap data.
-9. Implement coordinator-driven adaptive roadmap updates.
-10. Add rate limiting, observability, and privacy/deletion flows.
-11. Improve code rendering and frontend loading/error states.
-12. Add unit, API, sandbox, and end-to-end tests.
-13. Run a clean production build and deployment smoke test.
+8. Implement secure admin authorization and admin API routes.
+9. Replace mock admin data and controls with database-backed behavior.
+10. Persist resume, coding, aptitude, interview, and roadmap data.
+11. Implement coordinator-driven adaptive roadmap updates.
+12. Add rate limiting, observability, and privacy/deletion flows.
+13. Improve code rendering and frontend loading/error states.
+14. Add unit, API, admin, sandbox, and end-to-end tests.
+15. Run a clean production build and deployment smoke test.
 
 Do not begin with visual redesign or additional AI agents. Correct identity,
 data ownership, persistence, structured outputs, and evaluation reliability are
 more important than adding more model prompts.
+
+## 19. Final handoff checklist
+
+Use this checklist to determine whether the entire project is actually
+complete. Every item must be verified; a successful `next build` alone is not
+enough.
+
+### Foundation and environment
+
+- [ ] One package manager is selected and documented.
+- [ ] Only the selected lockfile is maintained and regenerated.
+- [ ] `.env.local` is ignored and `.env.example` contains names only.
+- [ ] Supabase, database, and Groq variables are configured locally.
+- [ ] The Prisma `User` model has a unique Supabase Auth user mapping.
+- [ ] `npx prisma validate` and `npx prisma generate` pass.
+- [ ] The initial Prisma migration is created, applied locally, and reviewed.
+- [ ] ESLint is installed, configured, and passing.
+
+### Authentication and data ownership
+
+- [ ] Sign-up, sign-in, sign-out, and session restoration use Supabase Auth.
+- [ ] The browser cannot choose its own user ID or role.
+- [ ] A controlled server-side procedure exists for creating the first admin.
+- [ ] Every student API derives identity from the server session.
+- [ ] Suspended or deleted users cannot use protected student functionality.
+- [ ] Student data persists across refreshes and different devices.
+- [ ] Students can view and delete their own stored data.
+
+### Admin panel
+
+- [ ] `/admin` is protected by server-side authorization.
+- [ ] Admin APIs return `401` for unauthenticated requests and `403` for
+      non-admin users.
+- [ ] Overview metrics come from database queries or are shown as unavailable.
+- [ ] Student search, filters, pagination, details, and progress are real.
+- [ ] Suspension, reactivation, and safe deletion work persistently.
+- [ ] Agent configuration and system settings are validated and persisted.
+- [ ] Announcements are stored and delivered through notifications.
+- [ ] Every privileged mutation creates an audit-log entry.
+- [ ] Admin UI has loading, empty, error, unauthorized, and success states.
+
+### Agents and learning loop
+
+- [ ] Every agent request is authenticated, validated, bounded, and persisted
+      where appropriate.
+- [ ] Every JSON model response is validated at runtime before use or storage.
+- [ ] The coordinator can execute only an allowlisted agent and order.
+- [ ] Resume, coding, aptitude, interview, and roadmap records are durable.
+- [ ] The coach and coordinator use actual student performance evidence.
+- [ ] Readiness values are labeled as preparation indicators, not hiring
+      probabilities.
+- [ ] The coding evaluator is isolated before public deployment.
+
+### Reliability, privacy, and release
+
+- [ ] Rate limits exist for model-heavy and expensive endpoints.
+- [ ] Request IDs, safe logs, provider timeouts, and error metrics exist.
+- [ ] Secrets, full resumes, prompts, and stack traces are not logged.
+- [ ] Privacy and data-deletion behavior are documented and tested.
+- [ ] Unit, API, authorization, sandbox, and end-to-end tests pass.
+- [ ] `npm run lint`, `npm run build`, and `npm test` pass from a clean install.
+- [ ] A deployment smoke test confirms authentication, student flow, admin
+      flow, and database persistence.
+- [ ] No RAG/Pinecone/OCR code is present unless the product scope is
+      intentionally changed and documented.

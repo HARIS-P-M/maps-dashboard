@@ -18,6 +18,7 @@ model User {
   email     String   @unique
   name      String
   role      Role     @default(STUDENT)
+  status    UserStatus @default(ACTIVE)
   avatarUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,6 +29,10 @@ model User {
   roadmapItems  RoadmapItem[]
   notifications Notification[]
   leaderboard   Leaderboard?
+  auditLogs     AdminAuditLog[] @relation("AdminAuditActor")
+  updatedSettings SystemSetting[] @relation("SettingUpdater")
+  announcements Announcement[] @relation("AnnouncementAuthor")
+  agentConfigs  AgentConfig[] @relation("AgentConfigUpdater")
 
   @@map("users")
 }
@@ -35,6 +40,12 @@ model User {
 enum Role {
   STUDENT
   ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
 }
 
 // ─── User Stats ───────────────────────────────────────────────────────────────
@@ -80,9 +91,12 @@ enum AgentName {
   ORCHESTRATOR
   RESUME
   CODING
+  APTITUDE
   INTERVIEW
   COMPANY
   COACH
+  QUESTION_GENERATOR
+  PROBLEM_GENERATOR
 }
 
 // ─── Roadmap ──────────────────────────────────────────────────────────────────
@@ -141,4 +155,68 @@ model Leaderboard {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("leaderboard")
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedBy String
+  updatedAt DateTime @updatedAt
+
+  updater User @relation("SettingUpdater", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@map("system_settings")
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  message   String   @db.Text
+  audience  AnnouncementAudience @default(ALL_STUDENTS)
+  createdBy String
+  publishedAt DateTime?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  author User @relation("AnnouncementAuthor", fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([audience, publishedAt])
+  @@map("announcements")
+}
+
+enum AnnouncementAudience {
+  ALL_STUDENTS
+  ACTIVE_STUDENTS
+  ADMINS
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminUserId String
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  admin User @relation("AdminAuditActor", fields: [adminUserId], references: [id], onDelete: Restrict)
+
+  @@index([adminUserId, createdAt])
+  @@index([targetType, targetId])
+  @@map("admin_audit_logs")
+}
+
+model AgentConfig {
+  id          String    @id @default(cuid())
+  agentName   AgentName @unique
+  enabled     Boolean   @default(true)
+  model       String
+  temperature Float     @default(0.2)
+  maxTokens   Int       @default(4096)
+  updatedBy   String
+  updatedAt   DateTime  @updatedAt
+
+  updater User @relation("AgentConfigUpdater", fields: [updatedBy], references: [id], onDelete: Restrict)
+
+  @@map("agent_configs")
 }
