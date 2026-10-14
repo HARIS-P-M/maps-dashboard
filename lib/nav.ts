@@ -14,6 +14,7 @@ import {
   Settings,
   User,
   Users,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -36,6 +37,7 @@ export type ViewId =
   | 'admin-users'
   | 'admin-agents'
   | 'admin-settings'
+  | 'admin-audit-log'
 
 export type NavItem = {
   id: ViewId
@@ -67,6 +69,7 @@ export const adminNavItems: NavItem[] = [
   { id: 'admin-users', label: 'User Directory', icon: Users, group: 'Management' },
   { id: 'admin-agents', label: 'Agent Control', icon: Bot, group: 'Management' },
   { id: 'admin-settings', label: 'Site Config', icon: Settings, group: 'Configuration' },
+  { id: 'admin-audit-log', label: 'Audit Log', icon: ClipboardList, group: 'Configuration' },
 ]
 
 export const viewMeta: Record<ViewId, { title: string; subtitle: string }> = {
@@ -88,4 +91,5 @@ export const viewMeta: Record<ViewId, { title: string; subtitle: string }> = {
   'admin-users': { title: 'Cohort Management', subtitle: 'Monitor students, edit scores, and check streaks' },
   'admin-agents': { title: 'Agent Control Room', subtitle: 'Configure weights, parameters, and active agents' },
   'admin-settings': { title: 'System Settings', subtitle: 'Configure global features and dashboard toggles' },
+  'admin-audit-log': { title: 'Audit Log', subtitle: 'Complete trail of all privileged admin actions' },
 }

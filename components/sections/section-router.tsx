@@ -21,6 +21,7 @@ import { AdminOverview } from "./admin/admin-overview"
 import { AdminUsers } from "./admin/admin-users"
 import { AdminAgents } from "./admin/admin-agents"
 import { AdminSettings } from "./admin/admin-settings"
+import { AdminAuditLog } from "./admin/admin-audit-log"
 
 export function SectionRouter({ view, onNavigate }: { view: ViewId; onNavigate: (v: ViewId) => void }) {
   switch (view) {
@@ -62,5 +63,7 @@ export function SectionRouter({ view, onNavigate }: { view: ViewId; onNavigate: 
       return <AdminAgents />
     case "admin-settings":
       return <AdminSettings />
+    case "admin-audit-log":
+      return <AdminAuditLog />
   }
 }
