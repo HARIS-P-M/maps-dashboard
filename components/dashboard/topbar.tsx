@@ -61,7 +61,23 @@ export function Topbar({
           </div>
         )}
 
-        <div className="ml-auto flex items-center gap-1.5 md:ml-0">
+        <div className="ml-auto flex items-center gap-2 md:ml-0">
+          {user?.role === 'admin' ? (
+            <a
+              href="/"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
+            >
+              Student Portal
+            </a>
+          ) : (
+            <a
+              href="/admin"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/50 px-3 py-1 text-xs font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
+            >
+              Admin Portal
+            </a>
+          )}
+
           <button
             onClick={toggle}
             className="grid size-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"

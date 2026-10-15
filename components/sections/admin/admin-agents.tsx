@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { GlassCard } from '@/components/dashboard/glass-card'
+import { motion } from 'framer-motion'
+import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
+import { AnimatedCounter } from '@/components/dashboard/animated-counter'
 import {
   Save,
   ToggleLeft,
@@ -11,10 +13,13 @@ import {
   CheckCircle,
   Activity,
   Zap,
-  Clock,
   TrendingUp,
   TrendingDown,
   RefreshCw,
+  Cpu,
+  ArrowUpRight,
+  Sliders,
+  Sparkles,
 } from 'lucide-react'
 import {
   LineChart,
@@ -27,6 +32,15 @@ import {
   BarChart,
   Bar,
 } from 'recharts'
+
+const container = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.06 } },
+}
+const item = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0 },
+}
 
 type AgentStatus = 'Online' | 'Offline' | 'Maintenance'
 
@@ -98,7 +112,7 @@ export function AdminAgents() {
       setSaving(false)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)
-    }, 800)
+    }, 600)
   }
 
   const toggleStatus = (id: string) => {
@@ -112,107 +126,172 @@ export function AdminAgents() {
   const totalCalls = agents.reduce((s, a) => s + a.callsToday, 0)
   const totalErrors = agents.reduce((s, a) => s + a.errorsToday, 0)
   const avgSuccess = agents.reduce((s, a) => s + a.successRate, 0) / agents.length
+  const onlineCount = agents.filter(a => a.status === 'Online').length
+
+  const stats = [
+    {
+      label: 'Total Calls Today',
+      value: totalCalls,
+      suffix: '',
+      delta: 'Across 6 agents',
+      icon: Activity,
+      color: 'text-chart-1',
+      bg: 'bg-chart-1/15',
+    },
+    {
+      label: 'Avg. Success Rate',
+      value: Math.round(avgSuccess),
+      suffix: '%',
+      delta: `${totalErrors} errors total`,
+      icon: TrendingUp,
+      color: 'text-chart-2',
+      bg: 'bg-chart-2/15',
+    },
+    {
+      label: 'Online Fleet',
+      value: onlineCount,
+      suffix: ` / ${agents.length}`,
+      delta: 'All monitored',
+      icon: Zap,
+      color: 'text-chart-4',
+      bg: 'bg-chart-4/15',
+    },
+    {
+      label: 'Mean Latency',
+      value: Math.round(agents.reduce((s, a) => s + a.avgLatency, 0) / agents.length),
+      suffix: ' ms',
+      delta: 'Fast inference',
+      icon: Cpu,
+      color: 'text-chart-5',
+      bg: 'bg-chart-5/15',
+    },
+  ]
 
   return (
-    <div className="space-y-6">
-      {success && (
-        <div className="flex items-center gap-2 rounded-xl bg-success/15 border border-success/30 p-4 text-sm text-success">
-          <CheckCircle className="size-4" /> Agent configuration saved successfully.
+    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      {/* Header */}
+      <motion.div variants={item} className="flex items-center justify-between">
+        <div>
+          <p className="font-mono text-[0.7rem] uppercase tracking-[0.2em] text-muted-foreground">
+            AUTONOMOUS AGENTS
+          </p>
+          <h2 className="text-xl font-bold tracking-tight">Agent Control Room</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Real-time inference parameters, telemetry, and live runtime overrides.
+          </p>
         </div>
+      </motion.div>
+
+      {success && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 rounded-xl bg-success/15 border border-success/30 p-4 text-sm text-success"
+        >
+          <CheckCircle className="size-4" /> Agent configuration saved and pushed to runtime orchestrator.
+        </motion.div>
       )}
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Calls</span>
-            <Activity className="size-4 text-primary" />
-          </div>
-          <p className="text-2xl font-bold">{totalCalls.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground mt-1">across all agents today</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Avg Success</span>
-            <TrendingUp className="size-4 text-success" />
-          </div>
-          <p className="text-2xl font-bold">{avgSuccess.toFixed(1)}%</p>
-          <p className="text-xs text-muted-foreground mt-1">across all agents</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Total Errors</span>
-            <TrendingDown className="size-4 text-destructive" />
-          </div>
-          <p className="text-2xl font-bold">{totalErrors}</p>
-          <p className="text-xs text-muted-foreground mt-1">{((totalErrors / totalCalls) * 100).toFixed(1)}% error rate</p>
-        </GlassCard>
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between text-muted-foreground mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">Online Agents</span>
-            <Zap className="size-4 text-accent" />
-          </div>
-          <p className="text-2xl font-bold">{agents.filter(a => a.status === 'Online').length} / {agents.length}</p>
-          <p className="text-xs text-muted-foreground mt-1">all agents monitored</p>
-        </GlassCard>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((s) => {
+          const Icon = s.icon
+          return (
+            <motion.div key={s.label} variants={item}>
+              <GlassCard className="p-5">
+                <div className="flex items-start justify-between">
+                  <span className={`grid size-10 place-items-center rounded-xl ${s.bg} ${s.color}`}>
+                    <Icon className="size-5" />
+                  </span>
+                  <span className="flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
+                    <ArrowUpRight className="size-3" />
+                    {s.delta}
+                  </span>
+                </div>
+                <p className="mt-4 text-3xl font-semibold tracking-tight">
+                  <AnimatedCounter value={typeof s.value === 'number' ? s.value : 0} suffix={s.suffix} />
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
+              </GlassCard>
+            </motion.div>
+          )
+        })}
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <GlassCard className="p-6">
-          <h3 className="font-semibold mb-1">Agent Latency Over Time</h3>
-          <p className="text-xs text-muted-foreground mb-4">Average response time (ms) per agent</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={latencyHistory} margin={{ left: -20, right: 6, top: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-                <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }} />
-                <Line type="monotone" dataKey="orchestrator" name="Orchestrator" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="coding" name="Coding" stroke="var(--chart-2)" strokeWidth={1.5} dot={false} />
-                <Line type="monotone" dataKey="coach" name="Coach" stroke="var(--chart-5)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
-                <Line type="monotone" dataKey="resume" name="Resume" stroke="var(--chart-3)" strokeWidth={1.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
+        <motion.div variants={item}>
+          <GlassCard className="h-full p-6">
+            <SectionHeading
+              eyebrow="INFERENCE LATENCY"
+              title="Agent Response Time Trend"
+            />
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={latencyHistory} margin={{ left: -20, right: 6, top: 6 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                  <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
+                  <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }} />
+                  <Line type="monotone" dataKey="orchestrator" name="Orchestrator" stroke="var(--chart-1)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="coding" name="Coding" stroke="var(--chart-2)" strokeWidth={1.5} dot={false} />
+                  <Line type="monotone" dataKey="coach" name="Coach" stroke="var(--chart-5)" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="resume" name="Resume" stroke="var(--chart-3)" strokeWidth={1.5} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </GlassCard>
+        </motion.div>
 
-        <GlassCard className="p-6">
-          <h3 className="font-semibold mb-1">Calls by Agent (Today)</h3>
-          <p className="text-xs text-muted-foreground mb-4">Number of AI inference requests per agent</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={callsByAgent} layout="vertical" margin={{ left: 8, right: 24, top: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={60} />
-                <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }} />
-                <Bar dataKey="calls" name="Calls" fill="var(--primary)" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
+        <motion.div variants={item}>
+          <GlassCard className="h-full p-6">
+            <SectionHeading
+              eyebrow="WORKLOAD DISTRIBUTION"
+              title="Calls by Agent Today"
+            />
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={callsByAgent} layout="vertical" margin={{ left: 8, right: 24, top: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} tickLine={false} axisLine={false} width={64} />
+                  <Tooltip contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 10, fontSize: 11 }} />
+                  <Bar dataKey="calls" name="Calls" fill="var(--primary)" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </GlassCard>
+        </motion.div>
       </div>
 
       {/* Agent Grid + Config Panel */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Agent Cards */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold">Agent Command Center</h3>
-            <p className="text-xs text-muted-foreground">Click a card to configure</p>
-          </div>
+        <motion.div variants={item} className="lg:col-span-2 space-y-4">
+          <SectionHeading
+            eyebrow="ACTIVE AGENTS"
+            title="Agent Fleet Status"
+            action={<p className="text-xs text-muted-foreground">Select to tune parameters</p>}
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {agents.map(a => (
               <GlassCard
                 key={a.id}
                 onClick={() => setSelectedId(a.id)}
-                className={`p-5 cursor-pointer border transition-all ${selectedId === a.id ? 'border-primary/60 bg-primary/5 ring-1 ring-primary/20' : 'hover:border-border/80'}`}
+                className={`p-5 cursor-pointer border transition-all ${
+                  selectedId === a.id
+                    ? 'border-primary/60 bg-primary/5 ring-2 ring-primary/25 shadow-[0_0_24px_rgba(var(--primary-rgb),0.15)]'
+                    : 'hover:border-border/80'
+                }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
-                    <h4 className="font-semibold text-sm">{a.name}</h4>
+                    <h4 className="font-semibold text-sm flex items-center gap-1.5">
+                      {a.name}
+                      {selectedId === a.id && (
+                        <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                      )}
+                    </h4>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{a.role}</p>
                   </div>
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md ${a.status === 'Online' ? 'bg-success/15 text-success' : a.status === 'Offline' ? 'bg-muted text-muted-foreground' : 'bg-warning/15 text-warning'}`}>
@@ -221,29 +300,29 @@ export function AdminAgents() {
                   </span>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-lg bg-secondary/40 p-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Calls</p>
+                <div className="mt-3.5 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl bg-secondary/40 p-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Calls</p>
                     <p className="text-sm font-bold mt-0.5">{a.callsToday}</p>
                   </div>
-                  <div className="rounded-lg bg-secondary/40 p-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Latency</p>
+                  <div className="rounded-xl bg-secondary/40 p-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Latency</p>
                     <p className="text-sm font-bold mt-0.5">{a.avgLatency}ms</p>
                   </div>
-                  <div className="rounded-lg bg-secondary/40 p-2">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Success</p>
+                  <div className="rounded-xl bg-secondary/40 p-2">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Success</p>
                     <p className={`text-sm font-bold mt-0.5 ${a.successRate >= 98 ? 'text-success' : a.successRate >= 90 ? 'text-warning' : 'text-destructive'}`}>{a.successRate}%</p>
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center justify-between">
+                <div className="mt-3.5 flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Model</p>
-                    <p className="text-xs font-mono">{a.model.split('-').slice(0, 2).join('-')}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">Model</p>
+                    <p className="text-xs font-mono font-medium">{a.model.split('-').slice(0, 3).join('-')}</p>
                   </div>
                   <button
                     onClick={e => { e.stopPropagation(); toggleStatus(a.id) }}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
                     title={a.status === 'Online' ? 'Disable Agent' : 'Enable Agent'}
                   >
                     {a.status === 'Online' ? <ToggleRight className="size-6 text-primary" /> : <ToggleLeft className="size-6" />}
@@ -251,8 +330,8 @@ export function AdminAgents() {
                 </div>
 
                 <div className="mt-3">
-                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">
-                    <span>Thread Load</span>
+                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1 uppercase tracking-wider font-mono">
+                    <span>Concurrency Load</span>
                     <span>{a.load}%</span>
                   </div>
                   <div className="w-full h-1.5 bg-secondary/50 rounded-full overflow-hidden">
@@ -265,14 +344,21 @@ export function AdminAgents() {
               </GlassCard>
             ))}
           </div>
-        </div>
+        </motion.div>
 
         {/* Configuration Panel */}
-        <div className="space-y-4">
-          <GlassCard className="p-6">
-            <h3 className="font-semibold mb-5 flex items-center gap-2">
-              <Settings className="size-4 text-primary" /> Configure: {active.name}
-            </h3>
+        <motion.div variants={item} className="space-y-4">
+          <GlassCard glow className="p-6">
+            <div className="mb-5 flex items-center gap-2">
+              <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
+                <Sliders className="size-4" />
+              </span>
+              <div>
+                <h3 className="font-semibold text-sm">Tune: {active.name}</h3>
+                <p className="text-[11px] text-muted-foreground">Adjust runtime temperature & tokens</p>
+              </div>
+            </div>
+
             <div className="space-y-5">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="agentStatus">
@@ -298,7 +384,7 @@ export function AdminAgents() {
                   id="agentModel"
                   value={active.model}
                   onChange={e => update({ model: e.target.value })}
-                  className="mt-2 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all focus:border-primary/50"
+                  className="mt-2 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all focus:border-primary/50 font-mono text-xs"
                 >
                   {availableModels.map(m => (
                     <option key={m} value={m}>{m}</option>
@@ -311,7 +397,7 @@ export function AdminAgents() {
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="agentTemp">
                     Temperature
                   </label>
-                  <span className="text-xs font-mono font-semibold">{active.temp.toFixed(1)}</span>
+                  <span className="text-xs font-mono font-semibold bg-secondary/50 px-2 py-0.5 rounded-md">{active.temp.toFixed(1)}</span>
                 </div>
                 <input
                   id="agentTemp"
@@ -323,9 +409,9 @@ export function AdminAgents() {
                   onChange={e => update({ temp: +e.target.value })}
                   className="mt-2 w-full accent-primary cursor-pointer h-1.5 rounded-lg"
                 />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                  <span>Precise</span>
-                  <span>Creative</span>
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1 font-mono">
+                  <span>Deterministic (0.0)</span>
+                  <span>Creative (1.0)</span>
                 </div>
               </div>
 
@@ -334,7 +420,7 @@ export function AdminAgents() {
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="agentTokens">
                     Max Output Tokens
                   </label>
-                  <span className="text-xs font-mono font-semibold">{active.maxTokens.toLocaleString()}</span>
+                  <span className="text-xs font-mono font-semibold bg-secondary/50 px-2 py-0.5 rounded-md">{active.maxTokens.toLocaleString()}</span>
                 </div>
                 <input
                   id="agentTokens"
@@ -346,9 +432,9 @@ export function AdminAgents() {
                   onChange={e => update({ maxTokens: +e.target.value })}
                   className="mt-2 w-full accent-primary cursor-pointer h-1.5 rounded-lg"
                 />
-                <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                <div className="flex justify-between text-[10px] text-muted-foreground mt-1 font-mono">
                   <span>256</span>
-                  <span>8192</span>
+                  <span>8,192</span>
                 </div>
               </div>
 
@@ -357,7 +443,13 @@ export function AdminAgents() {
                 disabled={saving}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-95 disabled:opacity-50"
               >
-                {saving ? <><RefreshCw className="size-4 animate-spin" /> Saving…</> : success ? <><CheckCircle className="size-4" /> Saved!</> : <><Save className="size-4" /> Save Configuration</>}
+                {saving ? (
+                  <><RefreshCw className="size-4 animate-spin" /> Saving…</>
+                ) : success ? (
+                  <><CheckCircle className="size-4" /> Parameters Updated</>
+                ) : (
+                  <><Save className="size-4" /> Save Configuration</>
+                )}
               </button>
             </div>
           </GlassCard>
@@ -365,14 +457,14 @@ export function AdminAgents() {
           <GlassCard className="p-5 flex items-start gap-3 bg-secondary/20">
             <AlertCircle className="size-5 text-accent shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider">Caution</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider">Operational Note</h4>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Changing temperature or disabling an agent takes effect on the next API request. Pro models yield deeper critiques but increase latency. Never store API keys in agent configuration.
+                Changes take effect dynamically without requiring server restart. Orchestrator maintains circuit breakers if error rates exceed 5%.
               </p>
             </div>
           </GlassCard>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   )
 }
