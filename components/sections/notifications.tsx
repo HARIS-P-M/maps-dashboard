@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { GlassCard } from "@/components/dashboard/glass-card"
-import { notifications as seed } from "@/lib/mock-data"
 import { AlertTriangle, CheckCircle2, Info, Sparkles, X } from "lucide-react"
 
 const typeMeta: Record<string, { icon: typeof Info; color: string }> = {
@@ -14,7 +13,7 @@ const typeMeta: Record<string, { icon: typeof Info; color: string }> = {
 }
 
 export function NotificationsSection() {
-  const [items, setItems] = useState(seed)
+  const [items, setItems] = useState<Notification[]>([])
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -75,4 +74,12 @@ export function NotificationsSection() {
       )}
     </div>
   )
+}
+
+type Notification = {
+  id: string
+  agent: string
+  text: string
+  time: string
+  type: string
 }

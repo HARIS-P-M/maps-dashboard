@@ -1,10 +1,8 @@
 "use client"
 
-import { motion } from "framer-motion"
 import { GlassCard } from "@/components/dashboard/glass-card"
 import { AnimatedCounter } from "@/components/dashboard/animated-counter"
-import { achievements } from "@/lib/mock-data"
-import { Award, Flame, MapPin, Trophy, Lock, Mail } from "lucide-react"
+import { Award, Flame, Mail } from "lucide-react"
 import { useAuth } from "@/components/dashboard/auth-context"
 
 function Github(props: React.SVGProps<SVGSVGElement>) {
@@ -52,14 +50,12 @@ export function ProfileSection() {
   const { user } = useAuth()
 
   const dynamicStats = [
-    { label: "Global Rank", value: 3, icon: Trophy },
-    { label: "Day Streak", value: user?.stats.streak ?? 32, icon: Flame },
-    { label: "Total XP", value: (user?.stats.problemsSolved ?? 74) * 150 + 660, icon: Award },
+    { label: "Day Streak", value: user?.stats.streak ?? 0, icon: Flame },
+    { label: "Problems Solved", value: user?.stats.problemsSolved ?? 0, icon: Award },
+    { label: "Active Days", value: user?.stats.activeDays ?? 0, icon: Award },
   ]
 
-  const userEmail = user
-    ? `${user.username.toLowerCase().replace(/\s+/g, "")}@maps.ai`
-    : "aditya@maps.ai"
+  const userEmail = user?.email ?? "Not available"
 
   return (
     <div className="space-y-6">
@@ -70,14 +66,11 @@ export function ProfileSection() {
             {user ? user.username.substring(0, 2).toUpperCase() : "US"}
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-semibold">{user ? user.username : "Aditya Raj"}</h2>
+            <h2 className="text-2xl font-semibold">{user?.username ?? "Student"}</h2>
             <p className="text-sm text-muted-foreground">
-              {user?.role === "admin" ? "Platform Administrator" : "Final Year · B.Tech CSE · Aspiring SDE"}
+              {user?.role === "admin" ? "Platform Administrator" : "Student profile"}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3.5 w-3.5" /> Bengaluru, India
-              </span>
               <span className="flex items-center gap-1">
                 <Mail className="h-3.5 w-3.5" /> {userEmail}
               </span>
@@ -106,31 +99,10 @@ export function ProfileSection() {
       </GlassCard>
 
       <GlassCard className="p-6">
-        <h2 className="mb-4 text-lg font-semibold">Achievements</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {achievements.map((a, i) => (
-            <motion.div
-              key={a.id}
-              initial={{ opacity: 0, scale: 0.94 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: i * 0.05 }}
-              whileHover={{ y: -3 }}
-              className={`rounded-xl border p-4 text-center ${
-                a.unlocked ? "border-primary/30 bg-primary/5" : "border-border bg-secondary/30 opacity-60"
-              }`}
-            >
-              <span
-                className={`mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full ${
-                  a.unlocked ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
-                }`}
-              >
-                {a.unlocked ? <Award className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
-              </span>
-              <p className="text-sm font-medium">{a.title}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{a.desc}</p>
-            </motion.div>
-          ))}
-        </div>
+        <h2 className="text-lg font-semibold">Profile data</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Profile achievements will appear after the corresponding activity is persisted.
+        </p>
       </GlassCard>
     </div>
   )

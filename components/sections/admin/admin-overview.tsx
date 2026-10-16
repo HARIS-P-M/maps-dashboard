@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import { AnimatedCounter } from '@/components/dashboard/animated-counter'
@@ -87,58 +87,96 @@ export function AdminOverview() {
   const [sent, setSent] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(new Date())
+  const [overview, setOverview] = useState<{
+    totalUsers: number
+    activeUsers: number
+    suspendedUsers: number
+    averages: { placementProb: number | null; atsScore: number | null }
+  } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  const handleBroadcast = (e: React.FormEvent) => {
+  const loadOverview = async () => {
+    setLoadError(null)
+    const response = await fetch('/api/admin/overview', { cache: 'no-store' })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Unable to load overview.')
+    setOverview(data)
+  }
+
+  useEffect(() => {
+    void loadOverview().catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load overview.')
+    })
+  }, [])
+
+  const handleBroadcast = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!broadcast.trim()) return
-    setSent(true)
-    setTimeout(() => {
-      setSent(false)
-      setBroadcast('')
-    }, 2500)
+    try {
+      const response = await fetch('/api/admin/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: broadcast, audience: 'ALL_STUDENTS' }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to send announcement.')
+      setSent(true)
+      setTimeout(() => {
+        setSent(false)
+        setBroadcast('')
+      }, 2500)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to send announcement.')
+    }
   }
 
   const handleRefresh = () => {
     setRefreshing(true)
-    setTimeout(() => {
-      setRefreshing(false)
-      setLastUpdated(new Date())
-    }, 800)
+    void loadOverview()
+      .then(() => {
+        setLastUpdated(new Date())
+      })
+      .catch((error) => {
+        setLoadError(error instanceof Error ? error.message : 'Unable to refresh overview.')
+      })
+      .finally(() => setRefreshing(false))
   }
 
   const stats = [
     {
       label: 'Total Students',
-      value: 46,
+      value: overview?.totalUsers ?? 0,
       suffix: '',
-      delta: '+3 this week',
+      delta: overview ? `${overview.suspendedUsers} suspended` : 'Loading…',
       icon: Users,
       color: 'text-chart-1',
       bg: 'bg-chart-1/15',
     },
     {
       label: 'Active Today',
-      value: 34,
+      value: overview?.activeUsers ?? 0,
       suffix: '',
-      delta: '74% of cohort',
+      delta: overview && overview.totalUsers > 0
+        ? `${Math.round((overview.activeUsers / overview.totalUsers) * 100)}% of cohort`
+        : 'No data',
       icon: Activity,
       color: 'text-chart-2',
       bg: 'bg-chart-2/15',
     },
     {
       label: 'Agent Calls Today',
-      value: 347,
+      value: 0,
       suffix: '',
-      delta: '42ms avg latency',
+      delta: 'Not instrumented',
       icon: Bot,
       color: 'text-chart-4',
       bg: 'bg-chart-4/15',
     },
     {
       label: 'Avg. Readiness',
-      value: 71,
+      value: Math.round(overview?.averages.placementProb ?? 0),
       suffix: '%',
-      delta: '+4% vs last week',
+      delta: overview ? 'Database aggregate' : 'Loading…',
       icon: TrendingUp,
       color: 'text-chart-5',
       bg: 'bg-chart-5/15',
@@ -170,6 +208,12 @@ export function AdminOverview() {
       </motion.div>
 
       {/* KPI Cards Row */}
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((s) => {
           const Icon = s.icon

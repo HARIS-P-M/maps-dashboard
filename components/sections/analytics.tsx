@@ -1,19 +1,25 @@
 "use client"
 
 import { GlassCard } from "@/components/dashboard/glass-card"
-import { ProgressAreaChart, ProbabilityLine, LanguageDonut } from "@/components/dashboard/charts"
+import { ProgressAreaChart, ProbabilityLine } from "@/components/dashboard/charts"
 import { AnimatedCounter } from "@/components/dashboard/animated-counter"
-import { codingProgress, languageSplit, probabilityTrend } from "@/lib/mock-data"
 import { motion } from "framer-motion"
-
-const kpis = [
-  { label: "Problems Solved", value: 74, suffix: "" },
-  { label: "Avg. Accuracy", value: 78, suffix: "%" },
-  { label: "Mock Interviews", value: 8, suffix: "" },
-  { label: "Active Days", value: 32, suffix: "" },
-]
+import { useAuth } from "@/components/dashboard/auth-context"
+import { useStore } from "@/lib/store"
 
 export function AnalyticsSection() {
+  const { user } = useAuth()
+  const { codingSessions, interviewHistory, aptitudeStats } = useStore()
+  const kpis = [
+    { label: "Problems Solved", value: user?.stats.problemsSolved ?? codingSessions.length, suffix: "" },
+    { label: "Avg. Accuracy", value: user?.stats.accuracy ?? (aptitudeStats.total ? Math.round(aptitudeStats.correct / aptitudeStats.total * 100) : 0), suffix: "%" },
+    { label: "Mock Interviews", value: user?.stats.mockInterviews ?? interviewHistory.length, suffix: "" },
+    { label: "Active Days", value: user?.stats.activeDays ?? 0, suffix: "" },
+  ]
+  const codingProgress = codingSessions.length
+    ? codingSessions.map((session, index) => ({ week: `#${index + 1}`, solved: session.passed ? 1 : 0, target: 1 }))
+    : []
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -38,18 +44,22 @@ export function AnalyticsSection() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <GlassCard className="p-6 xl:col-span-2">
           <h2 className="mb-4 text-lg font-semibold">Coding Progress vs. Target</h2>
-          <ProgressAreaChart data={codingProgress} />
+          {codingProgress.length ? <ProgressAreaChart data={codingProgress} /> : <EmptyState text="Complete coding sessions to see progress." />}
         </GlassCard>
         <GlassCard className="p-6">
           <h2 className="mb-4 text-lg font-semibold">Language Split</h2>
-          <LanguageDonut data={languageSplit} />
+          <EmptyState text="Language usage will appear after coding activity." />
         </GlassCard>
       </div>
 
       <GlassCard className="p-6">
         <h2 className="mb-4 text-lg font-semibold">Placement Probability Trend</h2>
-        <ProbabilityLine data={probabilityTrend} />
+        <EmptyState text="Probability history will appear after your first measured activity." />
       </GlassCard>
     </div>
   )
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <div className="flex h-48 items-center justify-center text-center text-sm text-muted-foreground">{text}</div>
 }

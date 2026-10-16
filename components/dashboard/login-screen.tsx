@@ -7,7 +7,7 @@ import { useAuth, type UserRole } from './auth-context'
 
 export function LoginScreen({ forcedRole }: { forcedRole: UserRole }) {
   const { login } = useAuth()
-  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -16,15 +16,11 @@ export function LoginScreen({ forcedRole }: { forcedRole: UserRole }) {
     e.preventDefault()
     setError('')
 
-    const trimmedName = name.trim()
+    const trimmedEmail = email.trim()
     const trimmedPass = password.trim()
 
-    if (!trimmedName) {
-      setError(
-        forcedRole === 'user'
-          ? 'Please enter a username or display name.'
-          : 'Please enter your administrator account identifier.'
-      )
+    if (!trimmedEmail) {
+      setError('Please enter your email address.')
       return
     }
 
@@ -33,16 +29,11 @@ export function LoginScreen({ forcedRole }: { forcedRole: UserRole }) {
       return
     }
 
-    if (trimmedPass !== 'password') {
-      setError('Incorrect password. (Hint: use "password")')
-      return
-    }
-
     setLoading(true)
-    setTimeout(() => {
-      login(trimmedName, forcedRole)
+    void login(trimmedEmail, trimmedPass).then((message) => {
       setLoading(false)
-    }, 600)
+      if (message) setError(message)
+    })
   }
 
   return (
@@ -81,15 +72,15 @@ export function LoginScreen({ forcedRole }: { forcedRole: UserRole }) {
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="username">
-                {forcedRole === 'user' ? 'Student Full Name' : 'Administrator Email/Username'}
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground" htmlFor="email">
+                Email address
               </label>
               <input
-                id="username"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={forcedRole === 'user' ? 'e.g. Aditya Raj' : 'e.g. admin'}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
                 className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50 focus:bg-secondary/50"
                 required
               />
@@ -113,9 +104,6 @@ export function LoginScreen({ forcedRole }: { forcedRole: UserRole }) {
                   required
                 />
               </div>
-              <p className="mt-1.5 text-right font-mono text-[10px] text-muted-foreground">
-                Hint: Use <span className="underline font-bold">password</span>
-              </p>
             </div>
           </div>
 

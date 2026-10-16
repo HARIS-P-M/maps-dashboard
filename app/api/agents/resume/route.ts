@@ -5,11 +5,13 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { RESUME_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const { resumeText, targetRole, targetCompany, jdText } = await req.json()
 
     if (!resumeText || typeof resumeText !== 'string') {
@@ -45,6 +47,9 @@ ${resumeText}
     const result = JSON.parse(jsonMatch[0])
     return Response.json(result)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Resume Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Resume agent unavailable' },

@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server'
 // when the route is evaluated by Next.js.
 import pdfParse from 'pdf-parse/lib/pdf-parse.js'
 import * as mammoth from 'mammoth'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
@@ -22,6 +23,7 @@ async function extractDocx(buffer: Buffer): Promise<string> {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 
@@ -72,6 +74,9 @@ export async function POST(req: NextRequest) {
       wordCount: text.split(/\s+/).filter(Boolean).length,
     })
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Document Parse Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to parse document' },

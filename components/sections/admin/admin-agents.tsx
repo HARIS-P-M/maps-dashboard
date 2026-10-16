@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import { AnimatedCounter } from '@/components/dashboard/animated-counter'
@@ -87,45 +87,109 @@ const initialAgents: Agent[] = [
 ]
 
 const availableModels = [
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-120b',
   'llama-3.3-70b-versatile',
   'llama3-70b-8192',
-  'llama3-8b-8192',
-  'mixtral-8x7b-32768',
-  'gemma2-9b-it',
 ]
 
 export function AdminAgents() {
-  const [agents, setAgents] = useState<Agent[]>(initialAgents)
+  const [agents, setAgents] = useState<Agent[]>([])
   const [selectedId, setSelectedId] = useState('orchestrator')
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState('')
 
-  const active = agents.find(a => a.id === selectedId) ?? agents[0]
+  useEffect(() => {
+    void fetch('/api/admin/agents', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load agent configuration.')
+        setAgents(data.agents.map((agent: {
+          agentName: string
+          model: string
+          temperature: number
+          maxTokens: number
+          enabled: boolean
+        }) => {
+          const fallback = initialAgents.find((item) => item.id === agent.agentName.toLowerCase()) ?? initialAgents[0]
+          return {
+            ...fallback,
+            id: agent.agentName.toLowerCase(),
+            model: agent.model,
+            temp: agent.temperature,
+            maxTokens: agent.maxTokens,
+            status: (agent.enabled ? 'Online' : 'Offline') as AgentStatus,
+            load: 0,
+            avgLatency: 0,
+            callsToday: 0,
+            errorsToday: 0,
+            successRate: 0,
+          }
+        }))
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load agent configuration.'))
+  }, [])
+
+  const active = agents.find(a => a.id === selectedId) ?? initialAgents[0]
 
   const update = (fields: Partial<Agent>) => {
     setAgents(prev => prev.map(a => a.id === selectedId ? { ...a, ...fields } : a))
   }
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
+    if (!agents.some((agent) => agent.id === selectedId)) return
     setSaving(true)
-    setTimeout(() => {
+    setLoadError('')
+    try {
+      const response = await fetch(`/api/admin/agents/${active.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: active.status === 'Online',
+          model: active.model,
+          temperature: active.temp,
+          maxTokens: active.maxTokens,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to save agent configuration.')
       setSaving(false)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 2500)
-    }, 600)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to save agent configuration.')
+      setSaving(false)
+    }
   }
 
-  const toggleStatus = (id: string) => {
+  const toggleStatus = async (id: string) => {
+    const current = agents.find((agent) => agent.id === id)
+    if (!current) return
+    const next: AgentStatus = current.status === 'Online' ? 'Offline' : 'Online'
     setAgents(prev => prev.map(a => {
       if (a.id !== id) return a
-      const next: AgentStatus = a.status === 'Online' ? 'Offline' : 'Online'
       return { ...a, status: next, load: next === 'Online' ? a.load : 0 }
     }))
+    try {
+      const response = await fetch(`/api/admin/agents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next === 'Online' }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to update agent status.')
+    } catch (error) {
+      setAgents(prev => prev.map(a => a.id === id ? current : a))
+      setLoadError(error instanceof Error ? error.message : 'Unable to update agent status.')
+    }
   }
 
   const totalCalls = agents.reduce((s, a) => s + a.callsToday, 0)
   const totalErrors = agents.reduce((s, a) => s + a.errorsToday, 0)
-  const avgSuccess = agents.reduce((s, a) => s + a.successRate, 0) / agents.length
+  const avgSuccess = agents.length
+    ? agents.reduce((s, a) => s + a.successRate, 0) / agents.length
+    : 0
   const onlineCount = agents.filter(a => a.status === 'Online').length
 
   const stats = [
@@ -169,6 +233,11 @@ export function AdminAgents() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
       {/* Header */}
       <motion.div variants={item} className="flex items-center justify-between">
         <div>

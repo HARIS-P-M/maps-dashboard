@@ -2,11 +2,13 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { QUESTION_GENERATOR_PROMPT } from '@/lib/agents/agent-prompts'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const { resumeText, jdText, targetRole } = await req.json()
 
     const userMessage = `
@@ -40,6 +42,9 @@ Please generate the mock interview questions based on the candidate's profile an
     const result = JSON.parse(jsonMatch[0])
     return Response.json(result)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Question Generator Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Question generator unavailable' },

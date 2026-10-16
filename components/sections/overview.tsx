@@ -8,16 +8,13 @@ import {
   Mic,
   ArrowUpRight,
   Check,
-  Trophy,
-  Lock,
   Zap,
 } from 'lucide-react'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import { AnimatedCounter } from '@/components/dashboard/animated-counter'
 import { RadialGauge } from '@/components/dashboard/radial-gauge'
 import { AgentGraph } from '@/components/dashboard/agent-graph'
-import { ProgressAreaChart, LanguageDonut } from '@/components/dashboard/charts'
-import { codingProgress, languageSplit, achievements } from '@/lib/mock-data'
+import { ProgressAreaChart } from '@/components/dashboard/charts'
 import type { ViewId } from '@/lib/nav'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/components/dashboard/auth-context'
@@ -39,7 +36,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
     coachData, setCoachData, isGeneratingCoach, setIsGeneratingCoach,
     completedTaskIds, toggleTask,
     getLiveAtsScore, getLiveInterviewScore, getLiveAptitudeScore,
-    getLivePlacementProb, getLiveStreak, getStudentContext,
+    getLivePlacementProb, getLiveStreak, getStudentContext, codingSessions,
   } = useStore()
   const [tasks, setTasks] = useState<any[]>([])
   const [coachError, setCoachError] = useState<string | null>(null)
@@ -207,7 +204,13 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
                 </button>
               }
             />
-            <ProgressAreaChart data={codingProgress} />
+            {codingSessions.length ? (
+              <ProgressAreaChart data={codingSessions.map((session, index) => ({ week: `#${index + 1}`, solved: session.passed ? 1 : 0, target: 1 }))} />
+            ) : (
+              <div className="flex h-48 items-center justify-center text-center text-sm text-muted-foreground">
+                Complete coding sessions to see your progress.
+              </div>
+            )}
           </GlassCard>
         </motion.div>
       </div>
@@ -291,7 +294,9 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
         <motion.div variants={item}>
           <GlassCard className="h-full p-6">
             <SectionHeading eyebrow="Practice mix" title="Languages used" />
-            <LanguageDonut data={languageSplit} />
+            <div className="flex h-32 items-center justify-center text-center text-sm text-muted-foreground">
+              Language usage will appear after coding activity.
+            </div>
           </GlassCard>
         </motion.div>
 
@@ -300,24 +305,9 @@ export function Overview({ onNavigate }: { onNavigate: (v: ViewId) => void }) {
           <GlassCard className="h-full p-6">
             <SectionHeading eyebrow="Milestones" title="Achievements" />
             <div className="grid grid-cols-2 gap-2.5">
-              {achievements.map((a) => (
-                <div
-                  key={a.id}
-                  className={`rounded-xl border p-3 ${
-                    a.unlocked ? 'border-primary/30 bg-primary/10' : 'border-border/60 bg-secondary/20 opacity-70'
-                  }`}
-                >
-                  <span
-                    className={`grid size-8 place-items-center rounded-lg ${
-                      a.unlocked ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'
-                    }`}
-                  >
-                    {a.unlocked ? <Trophy className="size-4" /> : <Lock className="size-4" />}
-                  </span>
-                  <p className="mt-2 text-xs font-semibold leading-tight">{a.title}</p>
-                  <p className="mt-0.5 text-[0.7rem] leading-tight text-muted-foreground">{a.desc}</p>
-                </div>
-              ))}
+              <div className="col-span-2 flex min-h-32 items-center justify-center text-center text-sm text-muted-foreground">
+                Achievements will appear as you complete real preparation milestones.
+              </div>
             </div>
           </GlassCard>
         </motion.div>

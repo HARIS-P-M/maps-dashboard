@@ -6,11 +6,13 @@ import { generateStream } from '@/lib/agents/groq-client'
 import { ORCHESTRATOR_PROMPT } from '@/lib/agents/agent-prompts'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
 import { buildDocumentContext } from '@/lib/agents/document-context'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const { message, history = [], userStats, documents = [] } = await req.json()
 
     if (!message || typeof message !== 'string') {
@@ -50,6 +52,9 @@ CURRENT STUDENT STATS (use these to give personalized advice):
       },
     })
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[ARIA Chat Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Agent unavailable' },

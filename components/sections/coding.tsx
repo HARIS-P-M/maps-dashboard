@@ -35,7 +35,7 @@ type GeneratedProblem = {
 }
 
 type HintResult = { hint: string; hintLevel: number; action: string }
-type TestCaseResult = { test: number; passed: boolean; output?: string }
+type TestCaseResult = { test: number; passed: boolean; output?: string; expected?: string }
 type ExecuteResult = {
   action: string
   passed: boolean
@@ -632,6 +632,26 @@ export function Coding() {
                     {!execResult ? 'Run code to evaluate' : execResult.passed ? '🎉 All Tests Passed!' : `${passedCount}/${totalTests} Passed`}
                   </span>
                 </div>
+                {execResult?.testResults && (
+                  <div className="mt-3 space-y-2">
+                    {execResult.testResults.map((result) => (
+                      <div key={result.test} className="rounded-lg border border-border/50 bg-secondary/20 p-2.5 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold">Test {result.test}</span>
+                          <span className={result.passed ? 'text-emerald-400' : 'text-rose-400'}>
+                            {result.passed ? 'Passed' : 'Failed'}
+                          </span>
+                        </div>
+                        <p className="mt-1 font-mono text-muted-foreground">
+                          Expected: {result.expected || '(no output)'}
+                        </p>
+                        <p className="font-mono text-muted-foreground">
+                          Actual: {result.output || '(no output)'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </GlassCard>
             </div>
 

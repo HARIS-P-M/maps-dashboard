@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Lock, Sparkles } from 'lucide-react'
 import { ThemeProvider } from './theme-context'
@@ -15,21 +15,55 @@ import type { ViewId } from '@/lib/nav'
 
 function DashboardInner({ isAdminRoute = false }: { isAdminRoute?: boolean }) {
   const { user, logout } = useAuth()
-  const [view, setView] = useState<ViewId>(isAdminRoute ? 'admin-dashboard' : 'dashboard')
+  const [view, setView] = useState<ViewId>(() => {
+    if (typeof window !== 'undefined' && isAdminRoute) {
+      const savedView = window.sessionStorage.getItem('maps-admin-view')
+      if (
+        savedView === 'admin-dashboard' ||
+        savedView === 'admin-users' ||
+        savedView === 'admin-agents' ||
+        savedView === 'admin-settings' ||
+        savedView === 'admin-audit-log'
+      ) {
+        return savedView
+      }
+    }
+    return isAdminRoute ? 'admin-dashboard' : 'dashboard'
+  })
+  const lastRoleRef = useRef<string | null>(null)
+  const lastPortalRef = useRef(isAdminRoute)
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
 
-  // Redirect to role-appropriate home view on login/route changes
+  // Only select a portal's home view after login or an actual portal/role change.
+  // Auth session refreshes return a new user object and must not reset navigation.
   useEffect(() => {
-    if (user) {
+    if (!user) {
+      lastRoleRef.current = null
+      return
+    }
+
+    const roleChanged = lastRoleRef.current !== user.role
+    const portalChanged = lastPortalRef.current !== isAdminRoute
+
+    if (roleChanged || portalChanged) {
       if (isAdminRoute && user.role === 'admin') {
         setView('admin-dashboard')
       } else if (!isAdminRoute && user.role === 'user') {
         setView('dashboard')
       }
     }
-  }, [user, isAdminRoute])
+
+    lastRoleRef.current = user.role
+    lastPortalRef.current = isAdminRoute
+  }, [user?.role, isAdminRoute])
+
+  useEffect(() => {
+    if (isAdminRoute) {
+      window.sessionStorage.setItem('maps-admin-view', view)
+    }
+  }, [isAdminRoute, view])
 
   if (!user) {
     return <LoginScreen forcedRole={isAdminRoute ? 'admin' : 'user'} />

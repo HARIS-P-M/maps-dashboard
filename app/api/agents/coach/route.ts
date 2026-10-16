@@ -6,11 +6,13 @@ import { generateText } from '@/lib/agents/groq-client'
 import { COACH_AGENT_PROMPT } from '@/lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     if (!process.env.GROQ_API_KEY) {
       return Response.json(
         { error: 'GROQ_API_KEY is not configured. The Coach Agent is unavailable.' },
@@ -86,6 +88,9 @@ IMPORTANT INSTRUCTIONS:
     const result = JSON.parse(sanitized)
     return Response.json(result)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Coach Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Coach agent unavailable' },

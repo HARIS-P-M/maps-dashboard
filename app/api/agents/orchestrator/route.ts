@@ -5,6 +5,7 @@ import { generateText } from '@/lib/agents/groq-client'
 import { ORCHESTRATOR_PLAN_PROMPT } from '@/lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
@@ -27,6 +28,7 @@ function isStudentContext(value: unknown): value is StudentContext {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const body: unknown = await req.json()
 
     if (typeof body !== 'object' || body === null || Array.isArray(body)) {
@@ -82,6 +84,9 @@ export async function POST(req: NextRequest) {
       headers: { 'X-Agent': 'placement-coordinator' },
     })
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Placement Coordinator Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Coordinator unavailable' },

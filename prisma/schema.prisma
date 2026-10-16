@@ -7,14 +7,13 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 model User {
   id        String   @id @default(cuid())
+  authUserId String   @unique
   email     String   @unique
   name      String
   role      Role     @default(STUDENT)
@@ -25,6 +24,12 @@ model User {
 
   // Relations
   stats         UserStats?
+  targetProfile TargetProfile?
+  resumes       Resume[]
+  resumeAnalyses ResumeAnalysis[]
+  codingAttempts CodingAttempt[]
+  aptitudeAttempts AptitudeAttempt[]
+  interviewSessions InterviewSession[]
   agentSessions AgentSession[]
   roadmapItems  RoadmapItem[]
   notifications Notification[]
@@ -68,6 +73,127 @@ model UserStats {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_stats")
+}
+
+model TargetProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  targetRole         String
+  targetCompany      String?
+  graduationYear     Int?
+  branch             String?
+  degree             String?
+  availableMinutes   Int?
+  targetPlacementDate DateTime?
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("target_profiles")
+}
+
+model Resume {
+  id             String   @id @default(cuid())
+  userId         String
+  originalFilename String
+  extractedText  String   @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses ResumeAnalysis[]
+
+  @@index([userId, createdAt])
+  @@map("resumes")
+}
+
+model ResumeAnalysis {
+  id              String   @id @default(cuid())
+  userId          String
+  resumeId        String?
+  overallScore    Int
+  jdMatchScore    Int?
+  sectionScores   Json
+  keywordGaps     Json
+  atsFixes        Json
+  rewrittenBullets Json?
+  summary         String   @db.Text
+  model            String?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume Resume? @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("resume_analyses")
+}
+
+model CodingAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  problemId      String?
+  problemTitle   String?
+  language       String
+  submittedCode  String   @db.Text
+  passed         Boolean
+  timeComplexity String?
+  spaceComplexity String?
+  feedback       String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("coding_attempts")
+}
+
+model AptitudeAttempt {
+  id            String   @id @default(cuid())
+  userId        String
+  topic         String
+  difficulty    String?
+  correct       Boolean
+  responseTimeMs Int?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, topic, createdAt])
+  @@map("aptitude_attempts")
+}
+
+model InterviewSession {
+  id          String   @id @default(cuid())
+  userId      String
+  role        String?
+  company     String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evaluations InterviewEvaluation[]
+
+  @@index([userId, startedAt])
+  @@map("interview_sessions")
+}
+
+model InterviewEvaluation {
+  id              String   @id @default(cuid())
+  sessionId       String
+  question        String   @db.Text
+  answer          String   @db.Text
+  starScore       Float?
+  clarity         Float?
+  confidence      Float?
+  relevance       Float?
+  overallScore    Float?
+  feedback        String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("interview_evaluations")
 }
 
 // ─── Agent Sessions ───────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import { generateText } from '../../../../lib/agents/groq-client'
 import { APTITUDE_AGENT_PROMPT } from '../../../../lib/agents/agent-prompts'
 import { jsonrepair } from 'jsonrepair'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
@@ -259,6 +260,7 @@ const buildTopicFallbackQuestion = (topic: string, subtopic?: string | null, rec
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     if (!process.env.GROQ_API_KEY) {
       return Response.json(
         { error: 'GROQ_API_KEY is not configured. The Aptitude Agent is unavailable.' },
@@ -475,6 +477,9 @@ The question must be fresh, practical, and test real placement exam skills.`
 
     return Response.json(result)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Aptitude Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Aptitude agent unavailable' },

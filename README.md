@@ -32,6 +32,34 @@ This is intentionally a local, request-scoped retrieval step; a durable vector
 store should only be introduced alongside document ownership, deletion, and
 retention controls.
 
+## Persistence and authentication status
+
+The application now contains the server-side authentication foundation:
+
+- Supabase Auth sessions are read from request cookies.
+- Application users map to Supabase Auth users through `User.authUserId`.
+- `/api/me` returns the verified application user.
+- Admin overview, user listing, user mutations, and announcements use server-side
+  admin authorization and audit logging.
+- Agent Control loads and saves persisted agent configuration through the protected
+  admin API.
+- Admin navigation is preserved across authentication refreshes and client remounts.
+- Student dashboard summaries, notifications, analytics, leaderboard, and profile
+  panels no longer display seeded demo records; they show persisted activity or
+  an explicit empty state until the student generates real data.
+- The student leaderboard reads active cohort members and their persisted `UserStats`
+  XP/streak values through `/api/leaderboard`.
+- The coding evaluator keeps OS, network, and file-access protections while allowing
+  normal contest input through `input()` and `sys.stdin`; it returns test results
+  without exposing an unrestricted process runner.
+
+Before running the first migration, rotate any credentials that were previously
+placed in a tracked environment file. Copy `.env.example` to `.env.local`, add
+the replacement values, and keep `.env.local` uncommitted. The initial Prisma migration has been applied in the configured database. Student
+preparation activity and operational telemetry are still separate follow-up work;
+the admin screens explicitly show unavailable telemetry rather than presenting
+fabricated production metrics.
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
 
 ## Built with v0

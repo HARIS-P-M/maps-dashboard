@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import { AnimatedCounter } from '@/components/dashboard/animated-counter'
@@ -106,14 +106,44 @@ const auditLogs: AuditEntry[] = [
 const PAGE_SIZE = 8
 
 export function AdminAuditLog() {
+  const [entries, setEntries] = useState<AuditEntry[]>([])
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [severityFilter, setSeverityFilter] = useState<'All' | AuditSeverity>('All')
   const [targetFilter, setTargetFilter] = useState<'All' | AuditEntry['targetType']>('All')
   const [page, setPage] = useState(1)
   const [selectedId, setSelectedId] = useState<string | null>('al-01')
 
+  useEffect(() => {
+    void fetch('/api/admin/audit-log?pageSize=50', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load audit log.')
+        setEntries(data.logs.map((entry: {
+          id: string
+          createdAt: string
+          action: string
+          targetType: string
+          targetId: string | null
+          metadata: unknown
+          admin: { name: string }
+        }) => ({
+          id: entry.id,
+          timestamp: entry.createdAt,
+          admin: entry.admin.name,
+          action: entry.action as AuditAction,
+          targetType: entry.targetType as AuditEntry['targetType'],
+          targetId: entry.targetId ?? 'unknown',
+          details: JSON.stringify(entry.metadata ?? {}),
+          severity: entry.action.includes('DELETE') || entry.action.includes('SUSPENDED') ? 'high' : 'low',
+          ip: 'Unavailable',
+        })))
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load audit log.'))
+  }, [])
+
   const filtered = useMemo(() => {
-    let list = auditLogs
+    let list = entries
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(e =>
@@ -126,20 +156,19 @@ export function AdminAuditLog() {
     if (severityFilter !== 'All') list = list.filter(e => e.severity === severityFilter)
     if (targetFilter !== 'All') list = list.filter(e => e.targetType === targetFilter)
     return list
-  }, [search, severityFilter, targetFilter])
+  }, [entries, search, severityFilter, targetFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const selected = auditLogs.find(e => e.id === selectedId)
-
-  const highCount = auditLogs.filter(e => e.severity === 'high').length
-  const mediumCount = auditLogs.filter(e => e.severity === 'medium').length
-  const lowCount = auditLogs.filter(e => e.severity === 'low').length
+  const selected = entries.find(e => e.id === selectedId)
+  const highCount = entries.filter(e => e.severity === 'high').length
+  const mediumCount = entries.filter(e => e.severity === 'medium').length
+  const lowCount = entries.filter(e => e.severity === 'low').length
 
   const stats = [
     {
       label: 'Total Audit Events',
-      value: auditLogs.length,
+      value: entries.length,
       suffix: '',
       delta: 'Last 7 days',
       icon: ClipboardList,
@@ -177,6 +206,11 @@ export function AdminAuditLog() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
       {/* Header */}
       <motion.div variants={item} className="flex items-center justify-between">
         <div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import {
@@ -87,26 +87,53 @@ export function AdminSettings() {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState('')
   const [confirmMaintenance, setConfirmMaintenance] = useState(false)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    void fetch('/api/admin/settings', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load settings.')
+        setFeatures(data.settings.featureFlags)
+        setSecurity(data.settings.security)
+        setPlatform(data.settings.platform)
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load settings.'))
+  }, [])
 
   const flash = (msg: string) => {
     setSuccess(msg)
     setTimeout(() => setSuccess(''), 3000)
   }
 
-  const handleSaveFeatures = () => {
+  const saveSettings = async (settings: Record<string, unknown>, message: string) => {
     setSaving(true)
-    setTimeout(() => {
+    setLoadError('')
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to save settings.')
+      setFeatures(data.settings.featureFlags)
+      setSecurity(data.settings.security)
+      setPlatform(data.settings.platform)
+      flash(message)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to save settings.')
+    } finally {
       setSaving(false)
-      flash('Feature flags updated and pushed to all active clients.')
-    }, 600)
+    }
+  }
+
+  const handleSaveFeatures = () => {
+    void saveSettings({ featureFlags: features }, 'Feature flags saved successfully.')
   }
 
   const handleSaveSecurity = () => {
-    setSaving(true)
-    setTimeout(() => {
-      setSaving(false)
-      flash('Security policy settings saved successfully.')
-    }, 600)
+    void saveSettings({ security }, 'Security policy settings saved successfully.')
   }
 
   const handleSavePlatform = () => {
@@ -114,12 +141,8 @@ export function AdminSettings() {
       setConfirmMaintenance(true)
       return
     }
-    setSaving(true)
-    setTimeout(() => {
-      setSaving(false)
-      setConfirmMaintenance(false)
-      flash('Platform settings saved. Changes applied immediately.')
-    }, 600)
+    void saveSettings({ platform }, 'Platform settings saved successfully.')
+    setConfirmMaintenance(false)
   }
 
   const handleResetDatabase = () => {
@@ -130,14 +153,29 @@ export function AdminSettings() {
     }, 1000)
   }
 
-  const handleSendAnnouncement = () => {
+  const handleSendAnnouncement = async () => {
     if (!announcementText.trim()) return
     setSaving(true)
-    setTimeout(() => {
-      setSaving(false)
+    try {
+      const audience = announcementAudience === 'All'
+        ? 'ALL_STUDENTS'
+        : announcementAudience === 'Students'
+          ? 'ACTIVE_STUDENTS'
+          : 'ADMINS'
+      const response = await fetch('/api/admin/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: announcementText, audience }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to send announcement.')
       setAnnouncementText('')
-      flash(`Announcement dispatched to ${announcementAudience} candidates.`)
-    }, 500)
+      flash(`Announcement dispatched to ${announcementAudience}.`)
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to send announcement.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const FeatureRow = ({
@@ -169,6 +207,11 @@ export function AdminSettings() {
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
       {/* Toast Alert */}
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
       {success && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -207,12 +250,8 @@ export function AdminSettings() {
               <button onClick={() => setConfirmMaintenance(false)} className="flex-1 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-secondary transition-all">Cancel</button>
               <button
                 onClick={() => {
-                  setSaving(true)
-                  setTimeout(() => {
-                    setSaving(false)
-                    setConfirmMaintenance(false)
-                    flash('Maintenance mode enabled — student portal is now locked.')
-                  }, 800)
+                  void saveSettings({ platform }, 'Maintenance mode setting saved.')
+                  setConfirmMaintenance(false)
                 }}
                 className="flex-1 rounded-xl bg-warning py-2.5 text-sm font-semibold text-black hover:opacity-90 transition-all"
               >

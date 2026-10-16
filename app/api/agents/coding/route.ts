@@ -10,21 +10,34 @@ import { writeFile, unlink } from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
 const BLOCKED_CODE_PATTERNS = [
-  /\b(?:os|sys|subprocess|socket|requests|urllib|http|ftplib|shutil|pathlib|ctypes)\b/,
-  /\b(?:open|eval|exec|compile|__import__|globals|locals|input)\s*\(/,
+  /^\s*(?:import|from)\s+(?:os|subprocess|socket|requests|urllib|http|ftplib|shutil|pathlib|ctypes)\b/m,
+  /\b(?:open|eval|exec|compile|__import__|globals|locals)\s*\(/,
   /(?:__class__|__subclasses__|__globals__|__builtins__)/,
+  /\bsys\.(?:exit|path|modules|_getframe|settrace|setprofile)\b/,
 ]
+
+class CodeValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CodeValidationError'
+  }
+}
 
 function validateStudentCode(code: string): void {
   if (typeof code !== 'string' || code.length > 30_000) {
-    throw new Error('Submitted code is missing or exceeds the 30,000 character limit.')
+    throw new CodeValidationError('Submitted code is missing or exceeds the 30,000 character limit.')
   }
-  if (BLOCKED_CODE_PATTERNS.some((pattern) => pattern.test(code))) {
-    throw new Error('This coding evaluator only supports self-contained algorithm code without system, network, or file access.')
+  const codeWithoutComments = code
+    .split('\n')
+    .map((line) => line.replace(/#.*$/, ''))
+    .join('\n')
+  if (BLOCKED_CODE_PATTERNS.some((pattern) => pattern.test(codeWithoutComments))) {
+    throw new CodeValidationError('This coding evaluator only supports self-contained algorithm code without system, network, or file access.')
   }
 }
 
@@ -45,17 +58,39 @@ async function runPython(code: string, input: string): Promise<{ stdout: string,
         TEMP: process.env.TEMP ?? tmpDir,
         TMP: process.env.TMP ?? tmpDir,
       }
-      const pyProcess = spawn('python', ['-I', filePath], {
-        cwd: tmpDir,
-        env: executionEnv,
-        windowsHide: true,
-      })
+      const interpreters = [
+        process.env.PYTHON_EXECUTABLE,
+        process.platform === 'win32' ? 'py' : 'python3',
+        'python3',
+        'python',
+      ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index)
+      let interpreterIndex = 0
+      let attemptId = 0
+
+      const startProcess = () => {
+        const interpreter = interpreters[interpreterIndex]
+        if (!interpreter) {
+          resolve({
+            stdout: '',
+            stderr: 'Error: Unable to start Python: no usable Python interpreter was found.',
+          })
+          return
+        }
+
+        const currentAttempt = ++attemptId
+        const args = interpreter === 'py' ? ['-3', '-I', filePath] : ['-I', filePath]
+        const pyProcess = spawn(interpreter, args, {
+          cwd: tmpDir,
+          env: executionEnv,
+          windowsHide: true,
+        })
 
       let stdout = ''
       let stderr = ''
       let settled = false
       let timeout: NodeJS.Timeout
       const finish = (result: { stdout: string; stderr: string }) => {
+        if (currentAttempt !== attemptId) return
         if (settled) return
         settled = true
         clearTimeout(timeout)
@@ -69,6 +104,11 @@ async function runPython(code: string, input: string): Promise<{ stdout: string,
       }, 3000)
 
       pyProcess.on('error', (error) => {
+        if (error.code === 'EACCES' || error.code === 'ENOENT') {
+          interpreterIndex += 1
+          startProcess()
+          return
+        }
         finish({ stdout, stderr: `${stderr}\nError: Unable to start Python: ${error.message}` })
       })
       pyProcess.stdout.on('data', (data) => {
@@ -89,6 +129,9 @@ async function runPython(code: string, input: string): Promise<{ stdout: string,
 
       if (input) pyProcess.stdin.write(`${input}\n`)
       pyProcess.stdin.end()
+      }
+
+      startProcess()
     })
   } catch (error) {
     await unlink(filePath).catch(() => undefined)
@@ -98,6 +141,7 @@ async function runPython(code: string, input: string): Promise<{ stdout: string,
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const {
       problemStatement,
       userCode,
@@ -150,7 +194,14 @@ Please give a Level ${hintLevel} hint. Do NOT give the full solution.
       if (!userCode || typeof userCode !== 'string') {
         return Response.json({ error: 'userCode is required for execution.' }, { status: 400 })
       }
-      validateStudentCode(userCode)
+      try {
+        validateStudentCode(userCode)
+      } catch (error) {
+        if (error instanceof CodeValidationError) {
+          return Response.json({ error: error.message }, { status: 400 })
+        }
+        throw error
+      }
 
       // 1. Actually execute the code against all test cases locally
       allPassed = true
@@ -171,6 +222,10 @@ Please give a Level ${hintLevel} hint. Do NOT give the full solution.
           output: actualOutput,
           expected: expectedOutput
         })
+
+        console.info(
+          `[Coding Evaluator] Test ${i + 1}: ${passed ? 'PASSED' : 'FAILED'} | expected=${JSON.stringify(expectedOutput)} | actual=${JSON.stringify(actualOutput)}`
+        )
         
         combinedStdout += `Test ${i + 1}:\nInput:\n${tc.input}\nExpected:\n${expectedOutput}\nActual:\n${actualOutput}\nPassed: ${passed}\n\n`
       }
@@ -198,12 +253,25 @@ Do NOT guess whether they passed or failed — use the actual compiler results p
 `
     }
 
-    const raw = await generateText(
-      CODING_AGENT_PROMPT,
-      userMessage,
-      [],
-      AGENT_MODELS.coding
-    )
+    let raw = ''
+    try {
+      raw = await generateText(
+        CODING_AGENT_PROMPT,
+        userMessage,
+        [],
+        AGENT_MODELS.coding
+      )
+    } catch (error) {
+      if (action !== 'execute') throw error
+      return Response.json({
+        passed: allPassed,
+        testResults,
+        stdout: combinedStdout,
+        timeComplexity: 'Unavailable',
+        spaceComplexity: 'Unavailable',
+        feedback: 'Execution completed. AI feedback is currently unavailable.',
+      })
+    }
 
     // Parse JSON
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
@@ -230,6 +298,12 @@ Do NOT guess whether they passed or failed — use the actual compiler results p
 
     return Response.json(aiResult)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
+    if (error instanceof CodeValidationError) {
+      return Response.json({ error: error.message }, { status: 400 })
+    }
     console.error('[Coding Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Coding agent unavailable' },

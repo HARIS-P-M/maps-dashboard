@@ -59,7 +59,7 @@ export const navItems: NavItem[] = [
   { id: 'roadmap', label: 'Personalized Roadmap', icon: Map, group: 'Intelligence' },
   { id: 'analytics', label: 'Progress Analytics', icon: LineChart, group: 'Intelligence' },
   { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, group: 'Community' },
-  { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Community', badge: 4 },
+  { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Community' },
   { id: 'settings', label: 'Settings', icon: Settings, group: 'Account' },
   { id: 'profile', label: 'Profile', icon: User, group: 'Account' },
 ]

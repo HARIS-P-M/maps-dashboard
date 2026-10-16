@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { GlassCard, SectionHeading } from '@/components/dashboard/glass-card'
 import {
@@ -110,7 +110,8 @@ function StatusBadge({ status }: { status: StudentStatus }) {
 }
 
 export function AdminUsers() {
-  const [students, setStudents] = useState<Student[]>(initialStudents)
+  const [students, setStudents] = useState<Student[]>([])
+  const [loadError, setLoadError] = useState('')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'All' | StudentStatus>('All')
   const [page, setPage] = useState(1)
@@ -120,6 +121,53 @@ export function AdminUsers() {
   const [successMsg, setSuccessMsg] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [newStudent, setNewStudent] = useState({ name: '', email: '', password: '', branch: 'CSE', year: '3rd' })
+  const [addingStudent, setAddingStudent] = useState(false)
+
+  useEffect(() => {
+    void fetch('/api/admin/users?pageSize=50', { cache: 'no-store' })
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load students.')
+        setStudents(data.users.map((user: {
+          id: string
+          name: string
+          email: string
+          status: 'ACTIVE' | 'SUSPENDED' | 'DELETED'
+          createdAt: string
+          stats: {
+            streak?: number
+            accuracy?: number
+            placementProb?: number
+            interviewReadiness?: number
+            atsScore?: number
+            activeDays?: number
+          } | null
+        }) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          branch: 'Not available',
+          year: 'Not available',
+          xp: 0,
+          streak: user.stats?.streak ?? 0,
+          accuracy: user.stats?.accuracy ?? 0,
+          prob: user.stats?.placementProb ?? 0,
+          role: 'Student',
+          status: user.status === 'SUSPENDED' ? 'Suspended' : 'Active',
+          codingScore: 0,
+          aptitudeScore: 0,
+          interviewScore: user.stats?.interviewReadiness ?? 0,
+          resumeScore: user.stats?.atsScore ?? 0,
+          activeDays: user.stats?.activeDays ?? 0,
+          joinedAt: user.createdAt,
+          lastActive: 'Not available',
+          targetRole: 'Not available',
+          targetCompany: 'Not available',
+        })))
+      })
+      .catch((error) => setLoadError(error instanceof Error ? error.message : 'Unable to load students.'))
+  }, [])
 
   const filtered = useMemo(() => {
     let list = students
@@ -153,26 +201,114 @@ export function AdminUsers() {
     setEditFields({ xp: s.xp, streak: s.streak, accuracy: s.accuracy, prob: s.prob, status: s.status })
   }
 
-  const handleSave = (id: string) => {
-    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...editFields } : s))
-    setEditingId(null)
-    flash('Student record updated successfully.')
+  const handleSave = async (id: string) => {
+    setLoadError('')
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: typeof editFields.name === 'string' ? editFields.name : undefined,
+          status: editFields.status === 'Suspended' ? 'SUSPENDED' : 'ACTIVE',
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to update student.')
+      setStudents(prev => prev.map(s => s.id === id ? {
+        ...s,
+        ...editFields,
+        name: data.user.name,
+        email: data.user.email,
+        status: data.user.status === 'SUSPENDED' ? 'Suspended' : 'Active',
+      } : s))
+      setEditingId(null)
+      flash('Student record updated successfully.')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to update student.')
+    }
   }
 
-  const handleDelete = (id: string) => {
-    setStudents(prev => prev.filter(s => s.id !== id))
-    setConfirmDelete(null)
-    if (selectedId === id) setSelectedId(students.find(s => s.id !== id)?.id ?? '')
-    flash('Student removed from cohort.')
+  const handleDelete = async (id: string) => {
+    setLoadError('')
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to remove student.')
+      setStudents(prev => prev.filter(s => s.id !== id))
+      setConfirmDelete(null)
+      if (selectedId === id) setSelectedId(students.find(s => s.id !== id)?.id ?? '')
+      flash('Student removed from cohort.')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to remove student.')
+    }
   }
 
-  const toggleSuspend = (id: string) => {
-    setStudents(prev => prev.map(s => {
-      if (s.id !== id) return s
-      const next: StudentStatus = s.status === 'Suspended' ? 'Active' : 'Suspended'
-      return { ...s, status: next }
-    }))
-    flash(students.find(s => s.id === id)?.status === 'Suspended' ? 'Student reactivated.' : 'Student suspended.')
+  const toggleSuspend = async (id: string) => {
+    const student = students.find(s => s.id === id)
+    if (!student) return
+    const next: StudentStatus = student.status === 'Suspended' ? 'Active' : 'Suspended'
+    setLoadError('')
+    try {
+      const response = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: next === 'Suspended' ? 'SUSPENDED' : 'ACTIVE' }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to update student status.')
+      setStudents(prev => prev.map(s => s.id === id ? { ...s, status: data.user.status === 'SUSPENDED' ? 'Suspended' : 'Active' } : s))
+      flash(next === 'Suspended' ? 'Student suspended.' : 'Student reactivated.')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to update student status.')
+    }
+  }
+
+  const handleAddStudent = async () => {
+    setAddingStudent(true)
+    setLoadError('')
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newStudent),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to add student.')
+      setStudents((current) => [{
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        branch: newStudent.branch,
+        year: newStudent.year,
+        xp: 0,
+        streak: 0,
+        accuracy: 0,
+        prob: 0,
+        role: 'Student',
+        status: 'Active',
+        codingScore: 0,
+        aptitudeScore: 0,
+        interviewScore: 0,
+        resumeScore: 0,
+        activeDays: 0,
+        joinedAt: data.user.createdAt,
+        lastActive: 'Not available',
+        targetRole: 'Undeclared',
+        targetCompany: 'Not available',
+      }, ...current])
+      setSelectedId(data.user.id)
+      setNewStudent({ name: '', email: '', password: '', branch: 'CSE', year: '3rd' })
+      setShowAddModal(false)
+      flash('Student account created successfully.')
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to add student.')
+    } finally {
+      setAddingStudent(false)
+    }
   }
 
   const radarData = selected ? [
@@ -186,6 +322,11 @@ export function AdminUsers() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+      {loadError && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+          {loadError}
+        </div>
+      )}
       {/* Toast Alert */}
       {successMsg && (
         <motion.div
@@ -481,22 +622,26 @@ export function AdminUsers() {
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Full Name</label>
-                <input type="text" placeholder="e.g. Rahul Verma" className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50" />
+                <input type="text" value={newStudent.name} onChange={(e) => setNewStudent((current) => ({ ...current, name: e.target.value }))} placeholder="e.g. Rahul Verma" className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50" />
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Email Address</label>
-                <input type="email" placeholder="e.g. rahul@example.com" className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50" />
+                <input type="email" value={newStudent.email} onChange={(e) => setNewStudent((current) => ({ ...current, email: e.target.value }))} placeholder="e.g. rahul@example.com" className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Temporary Password</label>
+                <input type="password" value={newStudent.password} onChange={(e) => setNewStudent((current) => ({ ...current, password: e.target.value }))} placeholder="At least 8 characters" className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Branch</label>
-                  <select className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none">
-                    <option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option>
+                  <select value={newStudent.branch} onChange={(e) => setNewStudent((current) => ({ ...current, branch: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none">
+                    {['CSE', 'IT', 'ECE', 'EEE'].map((branch) => <option key={branch}>{branch}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Year</label>
-                  <select className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none">
+                  <select value={newStudent.year} onChange={(e) => setNewStudent((current) => ({ ...current, year: e.target.value }))} className="mt-1.5 w-full rounded-xl border border-border bg-secondary/30 px-3.5 py-2.5 text-sm outline-none">
                     <option>3rd</option><option>4th</option>
                   </select>
                 </div>
@@ -504,7 +649,7 @@ export function AdminUsers() {
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowAddModal(false)} className="flex-1 rounded-xl border border-border py-2.5 text-sm font-semibold hover:bg-secondary transition-all">Cancel</button>
-              <button onClick={() => { setShowAddModal(false); flash('New student added to cohort.') }} className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-95 transition-all">Add Student</button>
+              <button onClick={() => void handleAddStudent()} disabled={addingStudent} className="flex-1 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-95 transition-all disabled:opacity-50">{addingStudent ? 'Creating…' : 'Add Student'}</button>
             </div>
           </div>
         </div>

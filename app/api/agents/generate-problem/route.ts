@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server'
 import { generateText } from '@/lib/agents/groq-client'
 import { jsonrepair } from 'jsonrepair'
 import { AGENT_MODELS } from '@/lib/agents/model-registry'
+import { requireCurrentUser, UnauthorizedError } from '@/lib/auth/current-user'
 
 export const runtime = 'nodejs'
 
@@ -55,6 +56,7 @@ Rules:
 
 export async function POST(req: NextRequest) {
   try {
+    await requireCurrentUser()
     const { company = 'General Tech', topic = 'Arrays', difficulty = 'Medium' } = await req.json()
 
     const userMessage = `Generate a unique, challenging coding problem with these exact parameters:
@@ -88,6 +90,9 @@ Ensure the problem reflects the type of DSA problems commonly asked by ${company
     const result = JSON.parse(sanitized)
     return Response.json(result)
   } catch (error) {
+    if (error instanceof UnauthorizedError) {
+      return Response.json({ error: error.message }, { status: 401 })
+    }
     console.error('[Problem Gen Agent Error]', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Problem generation unavailable' },

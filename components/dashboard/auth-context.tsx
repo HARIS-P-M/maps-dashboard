@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { supabase } from '@/lib/supabase/client'
 
 export type UserRole = 'user' | 'admin'
 
@@ -16,6 +17,8 @@ export type UserStats = {
 }
 
 export type AuthUser = {
+  id: string
+  email: string
   username: string
   role: UserRole
   stats: UserStats
@@ -23,7 +26,7 @@ export type AuthUser = {
 
 type AuthCtx = {
   user: AuthUser | null
-  login: (username: string, role: UserRole) => void
+  login: (email: string, password: string) => Promise<string | null>
   logout: () => void
   updateStats: (stats: Partial<UserStats>) => void
 }
@@ -41,8 +44,8 @@ const defaultStats: UserStats = {
 
 const Ctx = createContext<AuthCtx>({
   user: null,
-  login: () => {},
-  logout: () => {},
+  login: async () => 'Authentication is unavailable.',
+  logout: () => undefined,
   updateStats: () => {},
 })
 
@@ -51,41 +54,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const saved = localStorage.getItem('maps_auth')
-    if (saved) {
-      try {
-        setUser(JSON.parse(saved))
-      } catch (e) {
-        console.error('Failed to parse auth state', e)
+    let active = true
+
+    const loadUser = async () => {
+      const response = await fetch('/api/me', { cache: 'no-store' })
+      if (!active) return
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.user)
+      } else {
+        setUser(null)
       }
+      setLoading(false)
     }
-    setLoading(false)
+
+    void loadUser()
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') return
+      void loadUser()
+    })
+
+    return () => {
+      active = false
+      data.subscription.unsubscribe()
+    }
   }, [])
 
-  const login = (username: string, role: UserRole) => {
-    const freshUser: AuthUser = {
-      username: username || (role === 'admin' ? 'Administrator' : 'Student User'),
-      role,
-      stats: { ...defaultStats },
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) return error.message
+
+    const response = await fetch('/api/me', { cache: 'no-store' })
+    if (!response.ok) {
+      await supabase.auth.signOut()
+      return 'Your account profile is not available.'
     }
-    setUser(freshUser)
-    localStorage.setItem('maps_auth', JSON.stringify(freshUser))
+    const data = await response.json()
+    setUser(data.user)
+    return null
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut()
     setUser(null)
-    localStorage.removeItem('maps_auth')
   }
 
   const updateStats = (newStats: Partial<UserStats>) => {
     setUser((prev) => {
       if (!prev) return null
-      const updated = {
-        ...prev,
-        stats: { ...prev.stats, ...newStats },
-      }
-      localStorage.setItem('maps_auth', JSON.stringify(updated))
-      return updated
+      return { ...prev, stats: { ...prev.stats, ...newStats } }
     })
   }
 
